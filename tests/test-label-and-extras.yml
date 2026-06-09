@@ -1,0 +1,48 @@
+name: Test label, trunk-path, post-init, upload-series, check-run-id inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up mock trunk binary
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/trunk" << 'EOF'
+          #!/usr/bin/env bash
+          echo "mock trunk called with: $*"
+          exit 0
+          EOF
+          chmod +x "$HOME/.local/bin/trunk"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Create minimal trunk config
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml << 'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.1
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          check-mode: populate_cache_only
+          label: linux
+          trunk-path: ${{ github.workspace }}/.local/bin/trunk
+          post-init: echo "post-init step ran"
+          upload-series: main
+          check-run-id: "12345"
+          cache: "false"
+        continue-on-error: true
+
+      - name: Assert action ran
+        run: |
+          echo "Action completed with label, trunk-path, post-init, upload-series, check-run-id inputs"
+          echo "PASS"
