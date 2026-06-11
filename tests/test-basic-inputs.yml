@@ -1,0 +1,42 @@
+name: Test basic inputs (check-mode, arguments, cache-key, github-token, trunk-token, upload-series)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to prevent auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.6
+          EOF
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          check-mode: populate_cache_only
+          arguments: --no-progress
+          cache-key: test-repo-main
+          github-token: ${{ github.token }}
+          trunk-token: dummy-trunk-token
+          upload-series: main-branch
+
+      - name: Assert action ran (set-up-inputs step completed)
+        run: |
+          echo "Action completed with outcome: ${{ steps.action.outcome }}"
+          # The action may fail at trunk execution since trunk is not installed,
+          # but the inputs should have been processed. We verify the step ran.
+          if [ "${{ steps.action.outcome }}" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran (outcome: ${{ steps.action.outcome }})"

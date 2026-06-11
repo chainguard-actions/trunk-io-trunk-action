@@ -1,0 +1,151 @@
+name: Test trunk action inputs (all mode)
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up inputs step only (verify env vars are written)
+        shell: bash
+        env:
+          INPUT_CHECK_MODE: all
+          INPUT_GITHUB_TOKEN_RAW: fake-github-token
+          INPUT_TRUNK_TOKEN_RAW: fake-trunk-token
+          GITHUB_TOKEN_RAW: fake-github-token
+          GITHUB_EVENT_PR_BASE_SHA: ""
+          GITHUB_EVENT_PR_HEAD_REPO_FORK: ""
+          GITHUB_EVENT_PR_HEAD_SHA: ""
+          GITHUB_EVENT_PR_NUMBER: ""
+          GITHUB_REF_NAME_RAW: main
+          INPUT_ARGUMENTS_RAW: "--no-progress"
+          INPUT_CACHE_RAW: "true"
+          INPUT_CACHE_KEY_RAW: "my-repo-main"
+          RUNNER_OS_RAW: Linux
+          TRUNK_YAML_HASH: ""
+          INPUT_CAT_TRUNK_DEBUG_LOGS_RAW: "false"
+          INPUT_CHECK_ALL_MODE_RAW: ""
+          INPUT_CHECK_RUN_ID_RAW: "12345"
+          INPUT_DEBUG_RAW: "false"
+          INPUT_LABEL_RAW: "linux"
+          INPUT_SETUP_DEPS_RAW: "false"
+          INPUT_TIMEOUT_SECONDS_RAW: "0"
+          INPUT_TRUNK_PATH_RAW: ""
+          INPUT_UPLOAD_SERIES_RAW: "main-series"
+          INPUT_LFS_CHECKOUT_RAW: "true"
+        run: |
+          safe() {
+            printf '%s' "$1" | tr -d '\n\r'
+          }
+
+          safe_github_token=$(safe "$GITHUB_TOKEN_RAW")
+          printf 'GITHUB_TOKEN=%s\n' "$safe_github_token" >> "$GITHUB_ENV"
+          printf 'TRUNK_LAUNCHER_QUIET=false\n' >> "$GITHUB_ENV"
+
+          printf 'INPUT_GITHUB_TOKEN=%s\n' "$(safe "$INPUT_GITHUB_TOKEN_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_TRUNK_TOKEN=%s\n' "$(safe "$INPUT_TRUNK_TOKEN_RAW")" >> "$GITHUB_ENV"
+          printf 'TRUNK_TOKEN=%s\n' "$(safe "$INPUT_TRUNK_TOKEN_RAW")" >> "$GITHUB_ENV"
+          printf 'GITHUB_EVENT_PULL_REQUEST_BASE_SHA=%s\n' "$(safe "$GITHUB_EVENT_PR_BASE_SHA")" >> "$GITHUB_ENV"
+          printf 'GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK=%s\n' "$(safe "$GITHUB_EVENT_PR_HEAD_REPO_FORK")" >> "$GITHUB_ENV"
+          printf 'GITHUB_EVENT_PULL_REQUEST_HEAD_SHA=%s\n' "$(safe "$GITHUB_EVENT_PR_HEAD_SHA")" >> "$GITHUB_ENV"
+          printf 'GITHUB_EVENT_PULL_REQUEST_NUMBER=%s\n' "$(safe "$GITHUB_EVENT_PR_NUMBER")" >> "$GITHUB_ENV"
+          printf 'GITHUB_REF_NAME=%s\n' "$(safe "$GITHUB_REF_NAME_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_ARGUMENTS=%s\n' "$(safe "$INPUT_ARGUMENTS_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_CACHE=%s\n' "$(safe "$INPUT_CACHE_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_CACHE_KEY=trunk-%s-%s-%s\n' "$(safe "$INPUT_CACHE_KEY_RAW")" "$(safe "$RUNNER_OS_RAW")" "$(safe "$TRUNK_YAML_HASH")" >> "$GITHUB_ENV"
+          printf 'INPUT_CACHE_PATH=%s\n' "~/.cache/trunk" >> "$GITHUB_ENV"
+          printf 'INPUT_CAT_TRUNK_DEBUG_LOGS=%s\n' "$(safe "$INPUT_CAT_TRUNK_DEBUG_LOGS_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_CHECK_ALL_MODE=%s\n' "$(safe "$INPUT_CHECK_ALL_MODE_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_CHECK_MODE=%s\n' "$(safe "$INPUT_CHECK_MODE")" >> "$GITHUB_ENV"
+          printf 'INPUT_CHECK_RUN_ID=%s\n' "$(safe "$INPUT_CHECK_RUN_ID_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_DEBUG=%s\n' "$(safe "$INPUT_DEBUG_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_GITHUB_REF_NAME=%s\n' "$(safe "$GITHUB_REF_NAME_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_LABEL=%s\n' "$(safe "$INPUT_LABEL_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_SETUP_CACHE_KEY=%s\n' "$(safe "$INPUT_CACHE_KEY_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_SETUP_DEPS=%s\n' "$(safe "$INPUT_SETUP_DEPS_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_TARGET_CHECKOUT=\n' >> "$GITHUB_ENV"
+          printf 'INPUT_TARGET_CHECKOUT_REF=\n' >> "$GITHUB_ENV"
+          printf 'INPUT_TIMEOUT_SECONDS=%s\n' "$(safe "$INPUT_TIMEOUT_SECONDS_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_TRUNK_PATH=%s\n' "$(safe "$INPUT_TRUNK_PATH_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_UPLOAD_LANDING_STATE=false\n' >> "$GITHUB_ENV"
+          printf 'INPUT_UPLOAD_SERIES=%s\n' "$(safe "$INPUT_UPLOAD_SERIES_RAW")" >> "$GITHUB_ENV"
+          printf 'INPUT_UPLOAD_ID=\n' >> "$GITHUB_ENV"
+          printf 'INPUT_AUTOFIX_AND_PUSH=\n' >> "$GITHUB_ENV"
+          printf 'INPUT_LFS_CHECKOUT=%s\n' "$(safe "$INPUT_LFS_CHECKOUT_RAW")" >> "$GITHUB_ENV"
+
+      - name: Assert INPUT_ARGUMENTS is set
+        run: |
+          echo "actual: $INPUT_ARGUMENTS"
+          if [ "$INPUT_ARGUMENTS" != "--no-progress" ]; then
+            echo "FAIL: expected '--no-progress', got '$INPUT_ARGUMENTS'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert INPUT_CACHE_KEY contains cache-key
+        run: |
+          echo "actual: $INPUT_CACHE_KEY"
+          if [[ "$INPUT_CACHE_KEY" != *"my-repo-main"* ]]; then
+            echo "FAIL: expected INPUT_CACHE_KEY to contain 'my-repo-main'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert INPUT_CHECK_MODE is set
+        run: |
+          echo "actual: $INPUT_CHECK_MODE"
+          if [ "$INPUT_CHECK_MODE" != "all" ]; then
+            echo "FAIL: expected 'all', got '$INPUT_CHECK_MODE'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert INPUT_CHECK_RUN_ID is set
+        run: |
+          echo "actual: $INPUT_CHECK_RUN_ID"
+          if [ "$INPUT_CHECK_RUN_ID" != "12345" ]; then
+            echo "FAIL: expected '12345', got '$INPUT_CHECK_RUN_ID'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert INPUT_GITHUB_TOKEN is set
+        run: |
+          echo "actual: $INPUT_GITHUB_TOKEN"
+          if [ "$INPUT_GITHUB_TOKEN" != "fake-github-token" ]; then
+            echo "FAIL: expected 'fake-github-token'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert INPUT_LABEL is set
+        run: |
+          echo "actual: $INPUT_LABEL"
+          if [ "$INPUT_LABEL" != "linux" ]; then
+            echo "FAIL: expected 'linux', got '$INPUT_LABEL'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert INPUT_TRUNK_TOKEN is set
+        run: |
+          echo "actual: $INPUT_TRUNK_TOKEN"
+          if [ "$INPUT_TRUNK_TOKEN" != "fake-trunk-token" ]; then
+            echo "FAIL: expected 'fake-trunk-token'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert INPUT_UPLOAD_SERIES is set
+        run: |
+          echo "actual: $INPUT_UPLOAD_SERIES"
+          if [ "$INPUT_UPLOAD_SERIES" != "main-series" ]; then
+            echo "FAIL: expected 'main-series', got '$INPUT_UPLOAD_SERIES'"
+            exit 1
+          fi
+          echo "PASS"

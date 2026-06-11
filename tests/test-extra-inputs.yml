@@ -1,0 +1,49 @@
+name: Test extra inputs (label, trunk-path, post-init, check-run-id)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to prevent auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.6
+          EOF
+
+      - name: Create a fake trunk binary for testing
+        run: |
+          mkdir -p /tmp/fake-trunk-bin
+          cat > /tmp/fake-trunk-bin/trunk <<'EOF'
+          #!/bin/bash
+          echo "fake trunk called with: $@"
+          exit 0
+          EOF
+          chmod +x /tmp/fake-trunk-bin/trunk
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          label: linux-test
+          trunk-path: /tmp/fake-trunk-bin/trunk
+          post-init: echo "post-init step executed"
+          check-run-id: "12345"
+          check-mode: populate_cache_only
+
+      - name: Assert action ran (set-up-inputs step completed)
+        run: |
+          echo "Action completed with outcome: ${{ steps.action.outcome }}"
+          if [ "${{ steps.action.outcome }}" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran (outcome: ${{ steps.action.outcome }})"

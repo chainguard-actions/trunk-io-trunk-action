@@ -1,0 +1,163 @@
+name: Trunk Upgrade
+author: trunk.io
+description: Upgrade trunk and its tools
+
+branding:
+  icon: check
+  color: green
+
+inputs:
+  trunk-path:
+    description:
+      Path to Trunk Launcher. If not provided, we'll look for it the repo root, `.trunk/bin` and
+      `tools/`. If it can't be found anywhere and is not provided explicitly, we'll download it on
+      demand.
+    required: false
+
+  prefix:
+    description: Prefix to be added in the PR title
+    required: false
+
+  arguments:
+    description: Extra arguments to pass to trunk upgrade
+    required: false
+
+  base:
+    description: The base branch to create a PR against
+    required: false
+    default: main
+
+  github-token:
+    description:
+      A GitHub token to allow created PRs to run pull_request workflows. See
+      https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#triggering-further-workflow-runs
+      for more information.
+    required: false
+    default: ${{ github.token }}
+
+  setup-deps:
+    description:
+      Install dependencies for trunk check that the trunk CLI does not manage. This is only
+      necessary if you have Node dependencies in your package.json that your Node linters need (e.g.
+      eslint dependencies, or @types packages).
+    required: false
+    default: "false"
+
+  branch-name:
+    description: The branch name to generate the PR from
+    default: trunk-io/update-trunk
+    required: false
+
+  assignees:
+    description: A comma or newline separated list of GitHub assignee usernames
+    required: false
+
+  reviewers:
+    description: A comma or newline separated list of GitHub reviewer usernames
+    required: false
+
+  labels:
+    description: A comma or newline separated list of GitHub labels that should be added to the PR
+    default: trunk
+    required: false
+
+  add-paths:
+    description: Specific paths to add to the created pull request. Comma separated.
+    required: false
+    default: .trunk
+
+  lowercase-title:
+    description: A boolean to decide if the PR and commit message title should be in lowercase
+    required: false
+    default: false
+
+  signoff:
+    description: A boolean to add a Signed-off-by line to the commit message
+    required: false
+    default: false
+outputs:
+  pull-request-number:
+    description: The pull request number
+    value: ${{ steps.cpr.outputs.pull-request-number }}
+
+  pull-request-url:
+    description: The URL of the pull request.
+    value: ${{ steps.cpr.outputs.pull-request-url }}
+
+  pull-request-operation:
+    description:
+      The pull request operation performed by the action, `created`, `updated` or `closed`.
+    value: ${{ steps.cpr.outputs.pull-request-operation }}
+
+  pull-request-head-sha:
+    description: The commit SHA of the pull request branch.
+    value: ${{ steps.cpr.outputs.pull-request-head-sha }}
+
+runs:
+  using: composite
+  steps:
+    - name: Locate trunk
+      shell: bash
+      run: |
+        # Locate trunk
+        "${GITHUB_ACTION_PATH}/../setup/locate_trunk.sh"
+      env:
+        INPUT_TRUNK_PATH: ${{ inputs.trunk-path }}
+
+    - name: Detect trunk
+      id: auto_init
+      shell: bash
+      run: |
+        if [ ! -e .trunk/trunk.yaml ]; then
+          echo "Unable to run 'trunk upgrade'. Please run 'trunk init' and commit the generated '.trunk/trunk.yaml'."
+          exit 1
+        fi
+
+    - name: Detect setup strategy
+      shell: bash
+      run: |
+        if [ -e .trunk/setup-ci ]; then
+          echo "SETUP_DEPS=true" >>$GITHUB_ENV
+        else
+          mkdir -p .trunk
+          ln -s "${GITHUB_ACTION_PATH}/../setup-env" .trunk/setup-ci
+          echo .trunk/setup-ci >>.git/info/exclude
+        fi
+
+    - name: Set up env
+      uses: ./.trunk/setup-ci
+      if: env.SETUP_DEPS == 'true' || inputs.setup-deps == 'true'
+
+    - name: Run upgrade
+      id: upgrade
+      shell: bash
+      run: |
+        # Run trunk upgrade
+        "${GITHUB_ACTION_PATH}/upgrade.sh"
+      env:
+        UPGRADE_ARGUMENTS: ${{ inputs.arguments }}
+        LOWERCASE_TITLE: ${{ inputs.lowercase-title }}
+
+    - name: Cleanup temporary files
+      if: always()
+      shell: bash
+      run: |
+        # Cleanup temporary files
+        "${GITHUB_ACTION_PATH}/../cleanup.sh"
+
+    - name: Create Pull Request
+      id: cpr
+      uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
+      with:
+        title: ${{ inputs.prefix }}${{ env.PR_TITLE }}
+        body: ${{ env.PR_DESCRIPTION }}
+        base: ${{ inputs.base }}
+        branch: ${{ inputs.branch-name }}
+        labels: ${{ inputs.labels }}
+        add-paths: ${{ inputs.add-paths }}
+        commit-message: ${{ inputs.prefix }}${{ env.PR_TITLE }}
+        delete-branch: true
+        assignees: ${{ inputs.assignees }}
+        reviewers: ${{ inputs.reviewers }}
+        token: ${{ inputs.github-token }}
+        signoff: ${{ inputs.signoff }}
