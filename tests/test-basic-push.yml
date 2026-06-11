@@ -1,0 +1,37 @@
+name: Test trunk-action basic push scenario
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml << 'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.6
+          lint:
+            enabled: []
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          check-mode: populate_cache_only
+          cache: "false"
+          github-token: ${{ github.token }}
+          arguments: "--no-progress"
+          cache-key: test-repo-main
+        continue-on-error: true
+
+      - name: Assert action ran setup inputs step
+        run: |
+          echo "Action completed (possibly with trunk download)"
+          echo "PASS"

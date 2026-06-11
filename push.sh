@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# shellcheck disable=SC2086
-
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -22,7 +20,7 @@ if [[ ${GITHUB_EVENT_BEFORE} == "0000000000000000000000000000000000000000" ]]; t
     --ci \
     --all \
     --github-commit "${GITHUB_EVENT_AFTER}" \
-    ${INPUT_ARGUMENTS}
+    ${INPUT_ARGUMENTS:+"$INPUT_ARGUMENTS"}
   exit
 fi
 
@@ -44,4 +42,4 @@ fi
   --ci \
   --upstream "${upstream}" \
   --github-commit "${GITHUB_EVENT_AFTER}" \
-  ${INPUT_ARGUMENTS}
+  ${INPUT_ARGUMENTS:+"$INPUT_ARGUMENTS"}

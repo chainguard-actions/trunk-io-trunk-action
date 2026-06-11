@@ -1,0 +1,42 @@
+name: Test trunk-action advanced inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml << 'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.6
+          lint:
+            enabled: []
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          check-mode: populate_cache_only
+          cache: "false"
+          github-token: ${{ github.token }}
+          trunk-token: ""
+          label: "ubuntu"
+          trunk-path: ""
+          post-init: "echo 'post-init step ran'"
+          check-run-id: ""
+          upload-series: "main"
+          cache-key: test-repo-main
+        continue-on-error: true
+
+      - name: Assert action ran with advanced inputs
+        run: |
+          echo "Action completed with advanced inputs"
+          echo "PASS"

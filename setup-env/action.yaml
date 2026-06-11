@@ -114,8 +114,10 @@ runs:
     - name: Check for node installation
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE
       shell: bash
+      env:
+        _SETUP_NODE_OUTCOME: ${{ steps.setup_node.outcome }}
       run: |
-        if [ ${{ steps.setup_node.outcome }} == "success" ]; then
+        if [ "$_SETUP_NODE_OUTCOME" == "success" ]; then
           exit 0
         fi
         echo "::warning::Failed to install specified node version."
@@ -144,14 +146,18 @@ runs:
       id: install_packages
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash
-      run: ${{ env.INSTALL_CMD }}
+      run: |
+        # Run the package manager install command stored in INSTALL_CMD env var
+        $INSTALL_CMD
       continue-on-error: true
 
     - name: Check for package install
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash
+      env:
+        _INSTALL_PACKAGES_OUTCOME: ${{ steps.install_packages.outcome }}
       run: |
-        if [ ${{ steps.install_packages.outcome }} == "success" ]; then
+        if [ "$_INSTALL_PACKAGES_OUTCOME" == "success" ]; then
           exit 0
         fi
         echo "FAILED_NODE_PACKAGE_INSTALL=true" >>$GITHUB_ENV

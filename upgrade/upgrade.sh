@@ -3,8 +3,7 @@
 set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
-# trunk-ignore(shellcheck/SC2086): pass arguments directly as is
-upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n ${UPGRADE_ARGUMENTS} | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n ${UPGRADE_ARGUMENTS:+"$UPGRADE_ARGUMENTS"} | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then

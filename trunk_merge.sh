@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# shellcheck disable=SC2086
-
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -45,5 +43,5 @@ fi
   --upstream "${upstream}" \
   --github-commit "${git_commit}" \
   --github-label "${INPUT_LABEL}" \
-  ${annotation_argument} \
-  ${INPUT_ARGUMENTS}
+  ${annotation_argument:+"$annotation_argument"} \
+  ${INPUT_ARGUMENTS:+"$INPUT_ARGUMENTS"}
