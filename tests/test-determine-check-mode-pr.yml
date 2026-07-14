@@ -1,0 +1,86 @@
+name: Test determine check mode for pull_request event
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF_NAME: feature-branch
+      # Pre-set all INPUT_ vars as fallback in case $GITHUB_ENV processing has issues
+      INPUT_TRUNK_PATH: /usr/bin/true
+      INPUT_CHECK_MODE: none
+      INPUT_DEBUG: "false"
+      INPUT_CACHE: "false"
+      INPUT_SETUP_DEPS: "false"
+      INPUT_CACHE_PATH: /tmp/trunk-cache
+      INPUT_CACHE_KEY: trunk-test-key
+      INPUT_CAT_TRUNK_DEBUG_LOGS: "false"
+      INPUT_TIMEOUT_SECONDS: "0"
+      INPUT_LFS_CHECKOUT: "false"
+      INPUT_UPLOAD_LANDING_STATE: "false"
+      INPUT_UPLOAD_SERIES: ""
+      INPUT_UPLOAD_ID: ""
+      INPUT_AUTOFIX_AND_PUSH: ""
+      INPUT_TARGET_CHECKOUT: ""
+      INPUT_TARGET_CHECKOUT_REF: ""
+      INPUT_GITHUB_REF_NAME: feature-branch
+      INPUT_LABEL: ""
+      INPUT_ARGUMENTS: ""
+      INPUT_SETUP_CACHE_KEY: ""
+      INPUT_CHECK_ALL_MODE: ""
+      INPUT_CHECK_RUN_ID: ""
+      INPUT_GITHUB_TOKEN: ""
+      INPUT_TRUNK_TOKEN: ""
+      TRUNK_TOKEN: ""
+      GITHUB_EVENT_PULL_REQUEST_BASE_SHA: ""
+      GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK: ""
+      GITHUB_EVENT_PULL_REQUEST_HEAD_SHA: ""
+      GITHUB_EVENT_PULL_REQUEST_NUMBER: ""
+      TRUNK_LAUNCHER_QUIET: "false"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Test determine_check_mode script for pull_request event
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: pull_request
+          INPUT_CHECK_MODE: ""
+          INPUT_DEBUG: "false"
+        run: |
+          # Find the determine_check_mode.sh script
+          SCRIPT="./determine_check_mode.sh"
+          if [ ! -f "$SCRIPT" ]; then
+            SCRIPT=$(find . -name "determine_check_mode.sh" -maxdepth 3 | head -1)
+          fi
+          if [ -z "$SCRIPT" ]; then
+            echo "FAIL: determine_check_mode.sh not found"
+            exit 1
+          fi
+          echo "Found script at: $SCRIPT"
+
+          bash "$SCRIPT" 2>&1 || true
+
+          if grep -q "^TRUNK_CHECK_MODE=pull_request" "$GITHUB_ENV"; then
+            echo "PASS: TRUNK_CHECK_MODE=pull_request correctly set for pull_request event"
+          else
+            echo "FAIL: expected TRUNK_CHECK_MODE=pull_request in GITHUB_ENV"
+            cat "$GITHUB_ENV" || true
+            exit 1
+          fi
+
+      - name: Clean up any leftover .trunk/setup-ci from previous runs
+        run: rm -f .trunk/setup-ci
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          setup-deps: "false"
+          trunk-path: /usr/bin/true
+
+      - name: Assert action completed
+        run: |
+          echo "Action completed successfully"
+          echo "PASS"

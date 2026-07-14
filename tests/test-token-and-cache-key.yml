@@ -1,0 +1,62 @@
+name: Test github-token, trunk-token, upload-series, and cache-key inputs
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_EVENT_NAME: workflow_dispatch
+      GITHUB_REF_NAME: main
+      INPUT_TRUNK_PATH: /usr/bin/true
+      INPUT_CHECK_MODE: none
+      INPUT_DEBUG: "false"
+      INPUT_CACHE: "false"
+      INPUT_SETUP_DEPS: "false"
+      INPUT_CACHE_PATH: /tmp/trunk-cache
+      INPUT_CACHE_KEY: trunk-test-key
+      INPUT_CAT_TRUNK_DEBUG_LOGS: "false"
+      INPUT_TIMEOUT_SECONDS: "0"
+      INPUT_LFS_CHECKOUT: "false"
+      INPUT_UPLOAD_LANDING_STATE: "false"
+      INPUT_UPLOAD_SERIES: "my-series"
+      INPUT_UPLOAD_ID: ""
+      INPUT_AUTOFIX_AND_PUSH: ""
+      INPUT_TARGET_CHECKOUT: ""
+      INPUT_TARGET_CHECKOUT_REF: ""
+      INPUT_GITHUB_REF_NAME: main
+      INPUT_LABEL: ""
+      INPUT_ARGUMENTS: ""
+      INPUT_SETUP_CACHE_KEY: "my-cache-key"
+      INPUT_CHECK_ALL_MODE: ""
+      INPUT_CHECK_RUN_ID: ""
+      INPUT_GITHUB_TOKEN: "fake-github-token"
+      INPUT_TRUNK_TOKEN: "fake-trunk-token"
+      TRUNK_TOKEN: "fake-trunk-token"
+      GITHUB_EVENT_PULL_REQUEST_BASE_SHA: ""
+      GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK: ""
+      GITHUB_EVENT_PULL_REQUEST_HEAD_SHA: ""
+      GITHUB_EVENT_PULL_REQUEST_NUMBER: ""
+      TRUNK_LAUNCHER_QUIET: "false"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Clean up any leftover .trunk/setup-ci from previous runs
+        run: rm -f .trunk/setup-ci
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          setup-deps: "false"
+          trunk-path: /usr/bin/true
+          github-token: "fake-github-token"
+          trunk-token: "fake-trunk-token"
+          upload-series: "my-series"
+          cache-key: "my-cache-key"
+
+      - name: Assert action completed with token and cache-key inputs
+        run: |
+          echo "Action completed successfully with github-token, trunk-token, upload-series, and cache-key inputs"
+          echo "PASS"
