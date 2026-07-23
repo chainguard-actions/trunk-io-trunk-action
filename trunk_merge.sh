@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086
+
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -14,9 +16,6 @@ fetch() {
 }
 
 MINIMUM_CHECK_RUN_ID_VERSION=1.7.0
-
-# Split INPUT_ARGUMENTS into an array to avoid unquoted word-splitting injection
-read -ra arguments_array <<< "${INPUT_ARGUMENTS}"
 
 head_sha=$(git rev-parse HEAD)
 fetch --depth=2 origin "${head_sha}"
@@ -47,4 +46,4 @@ fi
   --github-commit "${git_commit}" \
   --github-label "${INPUT_LABEL}" \
   ${annotation_argument} \
-  "${arguments_array[@]+"${arguments_array[@]}"}"
+  ${INPUT_ARGUMENTS}

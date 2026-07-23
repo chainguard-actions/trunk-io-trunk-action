@@ -1,8 +1,7 @@
 name: repo_tests
 on: [workflow_dispatch, workflow_call]
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   repo_tests:
@@ -148,13 +147,13 @@ jobs:
 
     steps:
       - name: Checkout ${{ matrix.repo }}
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           repository: ${{ matrix.repo }}
           ref: ${{ matrix.ref }}
 
       - name: Checkout ${{ github.repository }}
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -176,18 +175,14 @@ jobs:
 
       - name: Check for task failures
         shell: bash
-        env:
-          GITHUB_ENV_PATH: ${{ github.env }}
-          MATRIX_REPO: ${{ matrix.repo }}
-          MATRIX_DESCRIPTION: ${{ matrix.description }}
         run: |
           python3 local-action/repo_tests/check_for_task_failures.py \
-            "$GITHUB_ENV_PATH" \
-            "$MATRIX_REPO" \
-            ${MATRIX_DESCRIPTION:+"$MATRIX_DESCRIPTION"}
+            '${{ github.env }}' \
+            '${{ matrix.repo }}' \
+            '${{ matrix.description }}'
 
       - name: Upload landing state
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.landing_state_artifact_name }} landing state
           path: .trunk/landing-state.json

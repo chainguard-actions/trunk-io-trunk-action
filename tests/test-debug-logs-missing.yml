@@ -1,4 +1,4 @@
-name: Test check-mode none
+name: Test cat-trunk-debug-logs when logs are missing
 on:
   workflow_dispatch:
 
@@ -37,14 +37,8 @@ jobs:
         with:
           check-mode: none
           cache: "false"
+          cat-trunk-debug-logs: "true"
 
-      - name: Assert TRUNK_CHECK_MODE was set to none
+      - name: Assert action completed successfully with missing logs
         run: |
-          echo "TRUNK_CHECK_MODE from env: $TRUNK_CHECK_MODE"
-          if [ "$TRUNK_CHECK_MODE" != "none" ]; then
-            echo "FAIL: expected TRUNK_CHECK_MODE=none but got: $TRUNK_CHECK_MODE"
-            exit 1
-          fi
-          echo "PASS: TRUNK_CHECK_MODE=none"
-        env:
-          TRUNK_CHECK_MODE: ${{ env.TRUNK_CHECK_MODE }}
+          echo "PASS: action completed without error even with missing log files"

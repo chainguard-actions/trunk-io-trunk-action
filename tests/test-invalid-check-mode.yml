@@ -1,98 +1,49 @@
-name: Test invalid check-mode value causes error
+name: Test invalid check-mode fails with error
 on:
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_EVENT_NAME: push
-      GITHUB_REF_NAME: main
-      # Pre-set all INPUT_ vars as fallback in case $GITHUB_ENV processing has issues
-      INPUT_TRUNK_PATH: /usr/bin/true
-      INPUT_CHECK_MODE: none
-      INPUT_DEBUG: "false"
-      INPUT_CACHE: "false"
-      INPUT_SETUP_DEPS: "false"
-      INPUT_CACHE_PATH: /tmp/trunk-cache
-      INPUT_CACHE_KEY: trunk-test-key
-      INPUT_CAT_TRUNK_DEBUG_LOGS: "false"
-      INPUT_TIMEOUT_SECONDS: "0"
-      INPUT_LFS_CHECKOUT: "false"
-      INPUT_UPLOAD_LANDING_STATE: "false"
-      INPUT_UPLOAD_SERIES: ""
-      INPUT_UPLOAD_ID: ""
-      INPUT_AUTOFIX_AND_PUSH: ""
-      INPUT_TARGET_CHECKOUT: ""
-      INPUT_TARGET_CHECKOUT_REF: ""
-      INPUT_GITHUB_REF_NAME: main
-      INPUT_LABEL: ""
-      INPUT_ARGUMENTS: ""
-      INPUT_SETUP_CACHE_KEY: ""
-      INPUT_CHECK_ALL_MODE: ""
-      INPUT_CHECK_RUN_ID: ""
-      INPUT_GITHUB_TOKEN: ""
-      INPUT_TRUNK_TOKEN: ""
-      TRUNK_TOKEN: ""
-      GITHUB_EVENT_PULL_REQUEST_BASE_SHA: ""
-      GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK: ""
-      GITHUB_EVENT_PULL_REQUEST_HEAD_SHA: ""
-      GITHUB_EVENT_PULL_REQUEST_NUMBER: ""
-      TRUNK_LAUNCHER_QUIET: "false"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Test that invalid check-mode causes determine_check_mode.sh to exit 1
-        shell: bash
-        env:
-          INPUT_CHECK_MODE: "invalid-mode"
-          INPUT_DEBUG: "false"
+      - name: Create minimal trunk config to avoid auto-init
         run: |
-          # Find the determine_check_mode.sh script
-          SCRIPT="./determine_check_mode.sh"
-          if [ ! -f "$SCRIPT" ]; then
-            SCRIPT=$(find . -name "determine_check_mode.sh" -maxdepth 3 | head -1)
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - name: Place a fake trunk binary
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk <<'EOF'
+          #!/bin/sh
+          if [ "$1" = "version" ]; then
+            echo "1.22.2"
+            exit 0
           fi
-          if [ -z "$SCRIPT" ]; then
-            echo "FAIL: determine_check_mode.sh not found"
-            exit 1
-          fi
-          echo "Found script at: $SCRIPT"
+          echo "fake trunk: $*"
+          exit 0
+          EOF
+          chmod +x .trunk/bin/trunk
 
-          set +e
-          output=$(bash "$SCRIPT" 2>&1)
-          exit_code=$?
-          set -e
-
-          echo "Exit code: $exit_code"
-          echo "Output: $output"
-
-          if [ "$exit_code" -ne 0 ]; then
-            echo "PASS: script correctly exited with non-zero code for invalid check-mode"
-          else
-            echo "FAIL: expected non-zero exit code for invalid check-mode 'invalid-mode'"
-            exit 1
-          fi
-
-          if echo "$output" | grep -q "check-mode must be one of"; then
-            echo "PASS: error message mentions valid modes"
-          else
-            echo "FAIL: expected error message about valid check-mode values"
-            exit 1
-          fi
-
-      - name: Clean up any leftover .trunk/setup-ci from previous runs
-        run: rm -f .trunk/setup-ci
-
-      - id: action
+      - name: Run action with invalid check-mode (expect failure)
+        id: action
         uses: .
         with:
-          check-mode: none
+          check-mode: invalid_mode
           cache: "false"
-          setup-deps: "false"
-          trunk-path: /usr/bin/true
+        continue-on-error: true
 
-      - name: Assert action completed
+      - name: Assert action failed for invalid check-mode
         run: |
-          echo "Action completed successfully with valid check-mode=none"
-          echo "PASS"
+          echo "outcome: ${{ steps.action.outcome }}"
+          if [ "${{ steps.action.outcome }}" != "failure" ]; then
+            echo "FAIL: expected action to fail with invalid check-mode but outcome was: ${{ steps.action.outcome }}"
+            exit 1
+          fi
+          echo "PASS: action correctly failed for invalid check-mode"

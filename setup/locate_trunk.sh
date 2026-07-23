@@ -23,8 +23,6 @@ if [[ -z ${trunk_path} ]]; then
     trunk_path="${tmpdir}/trunk"
   fi
 fi
-# Sanitize trunk_path to prevent newline injection into GITHUB_ENV
-safe_trunk_path=$(printf '%s' "${trunk_path}" | tr -d '\n\r')
-echo "TRUNK_PATH=${safe_trunk_path}" >>"${GITHUB_ENV}"
+echo "TRUNK_PATH=${trunk_path}" >>"${GITHUB_ENV}"
 # Ensure that trunk CLI is downloaded before subsequent steps
 ${trunk_path} version || echo "::warning::${trunk_path} does not exist!"

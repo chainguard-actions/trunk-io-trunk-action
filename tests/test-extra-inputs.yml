@@ -1,0 +1,88 @@
+name: Test extra inputs coverage
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to avoid auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - name: Place a fake trunk binary to avoid network download
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk <<'EOF'
+          #!/bin/sh
+          # Fake trunk binary for testing
+          if [ "$1" = "version" ]; then
+            echo "1.22.2"
+            exit 0
+          fi
+          echo "fake trunk: $*"
+          exit 0
+          EOF
+          chmod +x .trunk/bin/trunk
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          arguments: "--no-progress"
+          cache-key: "my-repo-main"
+          check-run-id: "12345"
+          github-token: ${{ github.token }}
+          label: "ubuntu"
+          trunk-token: ""
+          upload-series: "main-branch"
+
+      - name: Assert action completed with extra inputs
+        run: |
+          echo "Action completed successfully with extra inputs"
+          # Verify INPUT_ARGUMENTS was set correctly
+          echo "INPUT_ARGUMENTS: $INPUT_ARGUMENTS"
+          if [ "$INPUT_ARGUMENTS" != "--no-progress" ]; then
+            echo "FAIL: expected INPUT_ARGUMENTS=--no-progress but got: $INPUT_ARGUMENTS"
+            exit 1
+          fi
+          echo "PASS: INPUT_ARGUMENTS set correctly"
+
+          # Verify INPUT_LABEL was set correctly
+          echo "INPUT_LABEL: $INPUT_LABEL"
+          if [ "$INPUT_LABEL" != "ubuntu" ]; then
+            echo "FAIL: expected INPUT_LABEL=ubuntu but got: $INPUT_LABEL"
+            exit 1
+          fi
+          echo "PASS: INPUT_LABEL set correctly"
+
+          # Verify INPUT_UPLOAD_SERIES was set correctly
+          echo "INPUT_UPLOAD_SERIES: $INPUT_UPLOAD_SERIES"
+          if [ "$INPUT_UPLOAD_SERIES" != "main-branch" ]; then
+            echo "FAIL: expected INPUT_UPLOAD_SERIES=main-branch but got: $INPUT_UPLOAD_SERIES"
+            exit 1
+          fi
+          echo "PASS: INPUT_UPLOAD_SERIES set correctly"
+
+          # Verify INPUT_CHECK_RUN_ID was set correctly
+          echo "INPUT_CHECK_RUN_ID: $INPUT_CHECK_RUN_ID"
+          if [ "$INPUT_CHECK_RUN_ID" != "12345" ]; then
+            echo "FAIL: expected INPUT_CHECK_RUN_ID=12345 but got: $INPUT_CHECK_RUN_ID"
+            exit 1
+          fi
+          echo "PASS: INPUT_CHECK_RUN_ID set correctly"
+
+          echo "PASS: all extra inputs verified"
+        env:
+          INPUT_ARGUMENTS: ${{ env.INPUT_ARGUMENTS }}
+          INPUT_LABEL: ${{ env.INPUT_LABEL }}
+          INPUT_UPLOAD_SERIES: ${{ env.INPUT_UPLOAD_SERIES }}
+          INPUT_CHECK_RUN_ID: ${{ env.INPUT_CHECK_RUN_ID }}

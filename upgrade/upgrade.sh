@@ -2,11 +2,13 @@
 
 set -euo pipefail
 
-# Split UPGRADE_ARGUMENTS into an array to avoid unquoted word-splitting injection
-read -ra upgrade_arguments_array <<< "${UPGRADE_ARGUMENTS}"
-
 # Step 1: Run upgrade and strip ANSI coloring.
-upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_arguments_array[@]+"${upgrade_arguments_array[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_args=()
+if [[ -n "${UPGRADE_ARGUMENTS}" ]]; then
+  # Split UPGRADE_ARGUMENTS on whitespace into array elements
+  read -ra upgrade_args <<< "${UPGRADE_ARGUMENTS}"
+fi
+upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_args[@]+"${upgrade_args[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -39,7 +41,10 @@ rm -f .trunk/landing-state.json
 formatted_output=$(echo "${trimmed_upgrade_output}" | sed -e 's/^\(  \)\{0,1\}  /\1- /')
 
 # Step 5: Generate markdown
-description=$(echo "${formatted_output}" | sed -e '/^UPGRADE_CONTENTS/{\nr /dev/stdin\nd\n}' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
+description=$(echo "${formatted_output}" | sed -e '/^UPGRADE_CONTENTS/{
+r /dev/stdin
+d
+}' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
 {

@@ -1,0 +1,71 @@
+name: Test autodetect check-mode as all for workflow_dispatch
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to avoid auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - name: Place a fake trunk binary that handles all subcommands
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk <<'EOF'
+          #!/bin/sh
+          # Fake trunk binary for testing
+          case "$1" in
+            version)
+              echo "1.22.2"
+              exit 0
+              ;;
+            check)
+              echo "fake trunk check: no issues found"
+              exit 0
+              ;;
+            install)
+              echo "fake trunk install: done"
+              exit 0
+              ;;
+            *)
+              echo "fake trunk: $*"
+              exit 0
+              ;;
+          esac
+          EOF
+          chmod +x .trunk/bin/trunk
+
+      - name: Verify GITHUB_EVENT_NAME is workflow_dispatch
+        run: |
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "FAIL: expected workflow_dispatch event"
+            exit 1
+          fi
+          echo "PASS: event is workflow_dispatch"
+
+      - name: Run action with no check-mode (should autodetect as all)
+        id: action
+        uses: .
+        with:
+          cache: "false"
+
+      - name: Assert TRUNK_CHECK_MODE was autodetected as all
+        run: |
+          echo "TRUNK_CHECK_MODE=$TRUNK_CHECK_MODE"
+          if [ "$TRUNK_CHECK_MODE" != "all" ]; then
+            echo "FAIL: expected TRUNK_CHECK_MODE=all for workflow_dispatch but got: $TRUNK_CHECK_MODE"
+            exit 1
+          fi
+          echo "PASS: TRUNK_CHECK_MODE=all as expected for workflow_dispatch"
+        env:
+          TRUNK_CHECK_MODE: ${{ env.TRUNK_CHECK_MODE }}

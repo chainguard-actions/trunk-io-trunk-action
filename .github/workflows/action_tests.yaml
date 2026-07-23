@@ -1,8 +1,7 @@
 name: action_tests
 on: [workflow_dispatch, workflow_call]
 
-permissions:
-  contents: read
+permissions: read-all
 
 env:
   TMPDIR: /tmp/trunk-stub-tmp
@@ -13,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -47,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -81,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -117,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -157,7 +156,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -199,7 +198,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -241,7 +240,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -281,7 +280,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -315,7 +314,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -352,7 +351,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -391,7 +390,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -424,7 +423,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        uses: actions/checkout@v3
         with:
           path: local-action
 
@@ -467,7 +466,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -536,7 +535,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           path: local-action
 
@@ -549,19 +548,16 @@ jobs:
 
       - name: Craft TEST_GITHUB_EVENT_PATH
         shell: bash
-        env:
-          MATRIX_PAYLOAD_PATH: ${{ matrix.payload_path }}
-          MATRIX_DESCRIPTION: ${{ matrix.description }}
         run: |
-          payload=$(jq --null-input --slurpfile foo "local-action/$MATRIX_PAYLOAD_PATH" '{"payload": ($foo[0] | tostring)}')
+          payload=$(jq --null-input --slurpfile foo local-action/${{ matrix.payload_path }} '{"payload": ($foo[0] | tostring)}')
           echo "$(echo '{"inputs":'$(echo $payload | jq -c '.' )'}')">>local-action/payload.json
           echo "TEST_GITHUB_EVENT_PATH=local-action/payload.json">>$GITHUB_ENV
           mkdir -p .git/info
-          if [[ "$MATRIX_DESCRIPTION" == "pull-request-payload" ]]; then
+          if [[ "${{ matrix.description }}" == "pull-request-payload" ]]; then
             git checkout 1/merge
             echo "EXPECTED_UPSTREAM=$(git rev-parse 1/merge^1)" >>$GITHUB_ENV
             echo "EXPECTED_GITHUB_COMMIT=$(git rev-parse 1/merge^2)" >>$GITHUB_ENV
-          elif [[ "$MATRIX_DESCRIPTION" == "trunk-merge-payload" ]]; then
+          elif [[ "${{ matrix.description }}" == "trunk-merge-payload" ]]; then
             git checkout trunk-merge/of-feature-branch
             echo "EXPECTED_UPSTREAM=$(git rev-parse trunk-merge/of-feature-branch^1)" >>$GITHUB_ENV
             echo "EXPECTED_GITHUB_COMMIT=$(git rev-parse trunk-merge/of-feature-branch^2)" >>$GITHUB_ENV
@@ -578,9 +574,7 @@ jobs:
 
       - name: Assert CLI calls
         shell: bash
-        env:
-          MATRIX_DESCRIPTION: ${{ matrix.description }}
         run: |
           cd local-action
           npm install
-          ./action_tests/assert.js "$MATRIX_DESCRIPTION"
+          ./action_tests/assert.js ${{matrix.description}}

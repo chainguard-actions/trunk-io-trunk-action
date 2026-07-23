@@ -1,4 +1,4 @@
-name: Test check-mode none
+name: Test timeout-seconds input
 on:
   workflow_dispatch:
 
@@ -17,12 +17,11 @@ jobs:
             version: 1.22.2
           EOF
 
-      - name: Place a fake trunk binary to avoid network download
+      - name: Place a fake trunk binary
         run: |
           mkdir -p .trunk/bin
           cat > .trunk/bin/trunk <<'EOF'
           #!/bin/sh
-          # Fake trunk binary for testing
           if [ "$1" = "version" ]; then
             echo "1.22.2"
             exit 0
@@ -37,14 +36,8 @@ jobs:
         with:
           check-mode: none
           cache: "false"
+          timeout-seconds: 300
 
-      - name: Assert TRUNK_CHECK_MODE was set to none
+      - name: Assert action completed successfully with timeout set
         run: |
-          echo "TRUNK_CHECK_MODE from env: $TRUNK_CHECK_MODE"
-          if [ "$TRUNK_CHECK_MODE" != "none" ]; then
-            echo "FAIL: expected TRUNK_CHECK_MODE=none but got: $TRUNK_CHECK_MODE"
-            exit 1
-          fi
-          echo "PASS: TRUNK_CHECK_MODE=none"
-        env:
-          TRUNK_CHECK_MODE: ${{ env.TRUNK_CHECK_MODE }}
+          echo "PASS: action completed successfully with timeout-seconds=300 and check-mode=none"

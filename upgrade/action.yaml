@@ -107,8 +107,8 @@ runs:
     - name: Locate trunk
       shell: bash
       env:
-        INPUT_TRUNK_PATH: ${{ inputs.trunk-path }}
         ACTION_PATH: ${{ github.action_path }}
+        INPUT_TRUNK_PATH: ${{ inputs.trunk-path }}
       run: |
         # Locate trunk
         "${ACTION_PATH}/../setup/locate_trunk.sh"
@@ -143,9 +143,9 @@ runs:
       id: upgrade
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         UPGRADE_ARGUMENTS: ${{ inputs.arguments }}
         LOWERCASE_TITLE: ${{ inputs.lowercase-title }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         # Run trunk upgrade
         "${ACTION_PATH}/upgrade.sh"

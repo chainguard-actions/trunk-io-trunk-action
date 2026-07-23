@@ -1,10 +1,9 @@
 #!/bin/bash
 
-set -euo pipefail
+# shellcheck disable=SC2086
 
-# Split INPUT_ARGUMENTS into an array to avoid unquoted word-splitting injection
-read -ra arguments_array <<< "${INPUT_ARGUMENTS}"
+set -euo pipefail
 
 "${TRUNK_PATH}" install \
   --ci \
-  "${arguments_array[@]+"${arguments_array[@]}"}"
+  ${INPUT_ARGUMENTS}

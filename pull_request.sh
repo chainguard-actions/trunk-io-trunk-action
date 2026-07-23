@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086
+
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -14,9 +16,6 @@ fetch() {
 }
 
 MINIMUM_CHECK_RUN_ID_VERSION=1.7.0
-
-# Split INPUT_ARGUMENTS into an array to avoid unquoted word-splitting injection
-read -ra arguments_array <<< "${INPUT_ARGUMENTS}"
 
 if [[ ${INPUT_GITHUB_REF_NAME} == "${GITHUB_EVENT_PULL_REQUEST_NUMBER}/merge" ]]; then
   # If we have checked out the merge commit then fetch enough history to use HEAD^1 as the upstream.
@@ -63,7 +62,7 @@ else
 fi
 
 if [[ -n ${INPUT_AUTOFIX_AND_PUSH} ]]; then
-  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" "${arguments_array[@]+"${arguments_array[@]}"}"
+  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" ${INPUT_ARGUMENTS}
   git config --global user.email ""
   git config --global user.name "${GITHUB_ACTOR}"
   git commit --all --allow-empty --message "Trunk Check applied autofixes"
@@ -75,5 +74,5 @@ else
     --github-commit "${git_commit}" \
     --github-label "${INPUT_LABEL}" \
     "${annotation_argument}" \
-    "${arguments_array[@]+"${arguments_array[@]}"}"
+    ${INPUT_ARGUMENTS}
 fi
