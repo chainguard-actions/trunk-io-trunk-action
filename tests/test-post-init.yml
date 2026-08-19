@@ -1,0 +1,51 @@
+name: Test post-init steps execution
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+          # Create a fake trunk binary
+          cat > /tmp/fake-trunk-postinit <<'SCRIPT'
+          #!/bin/bash
+          if [[ "$1" == "version" ]]; then
+            echo "1.22.2"
+            exit 0
+          fi
+          exit 0
+          SCRIPT
+          chmod +x /tmp/fake-trunk-postinit
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          trunk-path: /tmp/fake-trunk-postinit
+          post-init: echo "post-init ran successfully" > /tmp/post-init-output.txt
+
+      - name: Assert post-init step ran
+        run: |
+          echo "Checking if post-init ran..."
+          if [ ! -f /tmp/post-init-output.txt ]; then
+            echo "FAIL: post-init output file not found"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/post-init-output.txt)
+          echo "post-init output: $CONTENT"
+          if [ "$CONTENT" != "post-init ran successfully" ]; then
+            echo "FAIL: unexpected post-init output: $CONTENT"
+            exit 1
+          fi
+          echo "PASS: post-init step ran successfully"

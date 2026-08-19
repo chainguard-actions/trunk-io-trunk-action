@@ -106,12 +106,11 @@ runs:
   steps:
     - name: Locate trunk
       shell: bash
-      env:
-        INPUT_TRUNK_PATH: ${{ inputs.trunk-path }}
-        _ACTION_PATH: ${{ github.action_path }}
       run: |
         # Locate trunk
-        "${_ACTION_PATH}/../setup/locate_trunk.sh"
+        "${GITHUB_ACTION_PATH}/../setup/locate_trunk.sh"
+      env:
+        INPUT_TRUNK_PATH: ${{ inputs.trunk-path }}
 
     - name: Detect trunk
       id: auto_init
@@ -124,14 +123,12 @@ runs:
 
     - name: Detect setup strategy
       shell: bash
-      env:
-        _ACTION_PATH: ${{ github.action_path }}
       run: |
         if [ -e .trunk/setup-ci ]; then
           echo "SETUP_DEPS=true" >>$GITHUB_ENV
         else
           mkdir -p .trunk
-          ln -s "${_ACTION_PATH}/../setup-env" .trunk/setup-ci
+          ln -s "${GITHUB_ACTION_PATH}/../setup-env" .trunk/setup-ci
           echo .trunk/setup-ci >>.git/info/exclude
         fi
 
@@ -142,22 +139,19 @@ runs:
     - name: Run upgrade
       id: upgrade
       shell: bash
+      run: |
+        # Run trunk upgrade
+        "${GITHUB_ACTION_PATH}/upgrade.sh"
       env:
         UPGRADE_ARGUMENTS: ${{ inputs.arguments }}
         LOWERCASE_TITLE: ${{ inputs.lowercase-title }}
-        _ACTION_PATH: ${{ github.action_path }}
-      run: |
-        # Run trunk upgrade
-        "${_ACTION_PATH}/upgrade.sh"
 
     - name: Cleanup temporary files
       if: always()
       shell: bash
-      env:
-        _ACTION_PATH: ${{ github.action_path }}
       run: |
         # Cleanup temporary files
-        "${_ACTION_PATH}/../cleanup.sh"
+        "${GITHUB_ACTION_PATH}/../cleanup.sh"
 
     - name: Create Pull Request
       id: cpr

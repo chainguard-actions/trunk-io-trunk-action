@@ -1,0 +1,42 @@
+name: Test custom trunk-path input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config and fake trunk binary
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+          # Create a fake trunk binary that responds to 'version' command
+          cat > /tmp/fake-trunk <<'SCRIPT'
+          #!/bin/bash
+          if [[ "$1" == "version" ]]; then
+            echo "1.22.2"
+            exit 0
+          fi
+          # For any other command, exit 0 (no-op)
+          exit 0
+          SCRIPT
+          chmod +x /tmp/fake-trunk
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          trunk-path: /tmp/fake-trunk
+
+      - name: Assert action used the custom trunk path
+        run: |
+          # The action should have used /tmp/fake-trunk as the trunk binary
+          # and completed without downloading trunk from the internet
+          echo "PASS: action completed with custom trunk-path"

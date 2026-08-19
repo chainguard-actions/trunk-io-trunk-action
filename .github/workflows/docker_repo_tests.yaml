@@ -1,0 +1,128 @@
+name: docker_repo_tests
+on: [workflow_dispatch, workflow_call]
+
+permissions: read-all
+
+jobs:
+  repo_tests:
+    name: ${{ matrix.repo }} ${{ matrix.description }}
+    runs-on: ubuntu-latest
+    # This is a docker image that mimics the github runner image
+    # https://github.com/catthehacker/docker_images/pkgs/container/ubuntu
+    container: ghcr.io/catthehacker/ubuntu:runner-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Items in this list satisfy a few criteria:
+          #
+          #   * test has to be useful/interesting and add value atop the monorepo tests for
+          #     trunk init
+          #
+          #   * the repo has to exercise some functionality specific to action.yaml (e.g. our
+          #     custom Node functionality for npm/yarn/pnpm)
+          #
+          #   * the repo and its dependency closure should be fast to set up, since we trigger
+          #     this workflow on PRs
+          #
+          - repo: highlightjs/highlight.js
+            ref: 4f9cd3bffb6bc55c9e2c4252c7b733a219880151
+            description: (uses npm)
+            post-init: |
+              # terrascan scans dockerfile.js (a JS file for parsing dockerfiles) as a dockerfile itself
+              echo "src/languages/dockerfile.js" >> .gitignore
+              cp local-action/repo_tests/highlightjs.yaml .trunk/user.yaml
+            cache: true
+
+          # Pin tracks pallets/flask main; pyproject still enables mypy (see [tool.mypy]).
+          - repo: pallets/flask
+            ref: 9fcd34c9f3065640bd1cd86234216ca068633fb9
+            post-init: |
+              # prettier chokes on this malformed html file
+              echo "examples/celery/src/task_app/templates/index.html" >> .gitignore
+              cp local-action/repo_tests/flask.yaml .trunk/user.yaml
+            cache: true
+
+          # PostCSS: track `main` in Docker (pnpm 9 lockfile + setup-env); host `repo_tests.yaml`
+          # keeps an older pin where default `trunk init` osv-scanner is stable on lockfile 6.x.
+          - repo: postcss/postcss
+            ref: 84fbbe9009cb3cc3bbb4cc3a9b65d468f4844d95
+            description: (uses pnpm)
+            pre-init: |
+              echo "20.18.0" > .nvmrc
+            post-init: |
+              cp local-action/repo_tests/postcss.yaml .trunk/user.yaml
+            cache: true
+
+          - repo: prawn-test-staging-rw/setup-node-test
+            ref: main
+            post-init: |
+              if [ "${FAILED_NODE_INSTALL}" != "true" ]; then
+                echo "::error::Initial setup node didn't fail"
+                exit 1
+              fi
+              if [ "${INSTALL_LATEST_NODE}" != "true" ]; then
+                echo "::error::Expected fallback latest-node install after failed version match"
+                exit 1
+              fi
+            description: (test for setup-node)
+            pre-init: |
+              # Unsatisfiable .nvmrc → setup-node fails (FAILED_NODE_INSTALL). Drop toolcache dirs
+              # from PATH into GITHUB_ENV so no preinstalled node remains (INSTALL_LATEST_NODE).
+              echo "99.0.0" >.nvmrc
+              p=
+              IFS=':'
+              for d in $PATH; do
+                case "$d" in */acttoolcache/*|*/hostedtoolcache/*) ;; *) p="${p:+$p:}$d" ;; esac
+              done
+              unset IFS
+              echo "PATH=$p" >>"$GITHUB_ENV"
+            cache: false
+
+          - repo: sass/sass
+            ref: 225e176115211387e014d97ae0076d94de3152a1
+            description: (uses npm)
+            cache: true
+
+    steps:
+      - name: Checkout ${{ matrix.repo }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ matrix.repo }}
+          ref: ${{ matrix.ref }}
+
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: local-action
+
+      - name: Run pre-init
+        if: matrix.pre-init
+        shell: bash
+        run: ${{ matrix.pre-init }}
+
+      - name: Run trunk-action in ${{ matrix.repo }}
+        id: trunk
+        uses: ./local-action/
+        with:
+          cache: ${{ matrix.cache }}
+          check-mode: all
+          post-init: ${{ matrix.post-init }}
+          arguments: --output-file=/tmp/landing-state.json
+          cache-key: repo_tests/${{ matrix.repo }}
+          setup-deps: true
+        continue-on-error: true
+
+      - name: Check for task failures
+        shell: bash
+        run: |
+          python3 local-action/repo_tests/check_for_task_failures.py \
+            '${{ github.env }}' \
+            '${{ matrix.repo }}' \
+            '${{ matrix.description }}'
+
+      - name: Upload landing state
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.landing_state_artifact_name }} landing state
+          path: .trunk/landing-state.json

@@ -9,7 +9,7 @@ fi
 tmpdir="$(mktemp -d)"
 echo "TRUNK_TMPDIR=${tmpdir}" >>"${GITHUB_ENV}"
 
-trunk_path="${INPUT_TRUNK_PATH}"
+trunk_path="$(printf '%s' "${INPUT_TRUNK_PATH}" | tr -d '\n\r')"
 if [[ -z ${trunk_path} ]]; then
   if [[ -f .trunk/bin/trunk && -x .trunk/bin/trunk ]]; then
     trunk_path=.trunk/bin/trunk
@@ -23,6 +23,7 @@ if [[ -z ${trunk_path} ]]; then
     trunk_path="${tmpdir}/trunk"
   fi
 fi
-echo "TRUNK_PATH=${trunk_path}" >>"${GITHUB_ENV}"
+safe_trunk_path="$(printf '%s' "${trunk_path}" | tr -d '\n\r')"
+echo "TRUNK_PATH=${safe_trunk_path}" >>"${GITHUB_ENV}"
 # Ensure that trunk CLI is downloaded before subsequent steps
 ${trunk_path} version || echo "::warning::${trunk_path} does not exist!"

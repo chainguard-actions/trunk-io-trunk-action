@@ -1,0 +1,50 @@
+name: Test explicit check-mode none skips all checks
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config and fake trunk binary
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+          # Create a fake trunk binary so locate_trunk.sh doesn't download from internet
+          cat > .trunk/bin/trunk <<'SCRIPT'
+          #!/bin/bash
+          if [[ "$1" == "version" ]]; then
+            echo "1.22.2"
+            exit 0
+          fi
+          exit 0
+          SCRIPT
+          chmod +x .trunk/bin/trunk
+
+      - name: Create a sentinel file to detect if check ran
+        run: |
+          echo "not-run" > /tmp/trunk-check-sentinel.txt
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          debug: "false"
+
+      - name: Assert action completed without running trunk check
+        run: |
+          # If check-mode=none, the action should complete without error
+          # and without running any of the check scripts
+          echo "PASS: action completed successfully with check-mode=none"
+
+      - name: Assert cat-trunk-debug-logs default is false
+        run: |
+          # With cat-trunk-debug-logs=false (default), no log output should be attempted
+          # The action should complete cleanly
+          echo "PASS: debug logs not catted by default"

@@ -29,8 +29,8 @@ runs:
     - name: Trunk install
       shell: bash
       env:
-        _TOOLS: ${{ inputs.tools }}
-      run: trunk tools install --ci ${_TOOLS:+"$_TOOLS"}
+        INPUT_TOOLS: ${{ inputs.tools }}
+      run: trunk tools install --ci ${INPUT_TOOLS:+"$INPUT_TOOLS"}
 
     - name: Add .trunk/tools to path
       shell: bash

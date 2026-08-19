@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086
+
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -21,7 +23,7 @@ if [[ -z ${INPUT_TRUNK_TOKEN} ]]; then
     --ci \
     --all \
     --github-commit "${GITHUB_SHA}" \
-    ${INPUT_ARGUMENTS:+"$INPUT_ARGUMENTS"}
+    ${INPUT_ARGUMENTS}
 elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
   latest_raw_upload="$(mktemp)"
   prev_ref="$("${TRUNK_PATH}" check get-latest-raw-output \
@@ -53,15 +55,15 @@ elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
   "${TRUNK_PATH}" check \
     --all \
     --upload \
-    ${htl_arg:+"$htl_arg"} \
-    ${upload_id_arg:+"$upload_id_arg"} \
+    ${htl_arg} \
+    ${upload_id_arg} \
     --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-    ${INPUT_ARGUMENTS:+"$INPUT_ARGUMENTS"}
+    ${INPUT_ARGUMENTS}
 else
   "${TRUNK_PATH}" check \
     --all \
     --upload \
     --series "${INPUT_UPLOAD_SERIES:-${INPUT_GITHUB_REF_NAME}}" \
     --token "${INPUT_TRUNK_TOKEN}" \
-    ${INPUT_ARGUMENTS:+"$INPUT_ARGUMENTS"}
+    ${INPUT_ARGUMENTS}
 fi

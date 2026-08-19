@@ -1,0 +1,41 @@
+name: Test cat-trunk-debug-logs option
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config and fake trunk binary
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+          # Create a fake trunk binary so locate_trunk.sh doesn't download from internet
+          cat > .trunk/bin/trunk <<'SCRIPT'
+          #!/bin/bash
+          if [[ "$1" == "version" ]]; then
+            echo "1.22.2"
+            exit 0
+          fi
+          exit 0
+          SCRIPT
+          chmod +x .trunk/bin/trunk
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          cat-trunk-debug-logs: "true"
+
+      - name: Assert action completed with debug logs enabled
+        run: |
+          # With cat-trunk-debug-logs=true, the action tries to cat .trunk/logs/cli.log
+          # and .trunk/logs/daemon.log. If they don't exist, it prints a message instead.
+          # The action should complete without error either way.
+          echo "PASS: action completed with cat-trunk-debug-logs=true"

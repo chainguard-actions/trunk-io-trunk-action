@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
-upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n ${UPGRADE_ARGUMENTS:+"$UPGRADE_ARGUMENTS"} | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${UPGRADE_ARGUMENTS}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -20,7 +20,7 @@ if [[ ${trimmed_upgrade_output} == *"cli upgrade"* ]]; then
   title_message="Upgrade trunk to ${new_cli_version}"
 fi
 
-if [[ ${LOWERCASE_TITLE} == "true" ]]; then
+if [[ "${LOWERCASE_TITLE}" == "true" ]]; then
   title_message=$(echo "${title_message}" | tr '[:upper:]' '[:lower:]')
 fi
 
