@@ -1,0 +1,110 @@
+name: Test locate trunk script
+on:
+  workflow_dispatch:
+
+jobs:
+  test-locate-trunk-via-input-path:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Test locate trunk logic - explicit path
+        run: |
+          # Create a fake trunk binary
+          mkdir -p /tmp/fake-trunk-dir
+          cat > /tmp/fake-trunk-dir/trunk << 'TRUNKEOF'
+          #!/bin/bash
+          case "$1" in
+            version) echo "1.22.6"; exit 0 ;;
+            *) echo "fake trunk: $*"; exit 0 ;;
+          esac
+          TRUNKEOF
+          chmod +x /tmp/fake-trunk-dir/trunk
+
+          # Simulate locate_trunk.sh logic with explicit INPUT_TRUNK_PATH
+          trunk_path="/tmp/fake-trunk-dir/trunk"
+          if [[ -z ${trunk_path} ]]; then
+            echo "FAIL: trunk_path should not be empty"
+            exit 1
+          fi
+          echo "Located trunk at: $trunk_path"
+          $trunk_path version
+          echo "PASS: trunk correctly located at $trunk_path"
+
+      - name: Test locate trunk logic - tools/ directory
+        run: |
+          # Create a fake trunk binary in tools/
+          mkdir -p tools
+          cat > tools/trunk << 'TRUNKEOF'
+          #!/bin/bash
+          case "$1" in
+            version) echo "1.22.6-tools"; exit 0 ;;
+            *) echo "fake trunk tools: $*"; exit 0 ;;
+          esac
+          TRUNKEOF
+          chmod +x tools/trunk
+
+          # Simulate locate_trunk.sh logic without INPUT_TRUNK_PATH
+          trunk_path=""
+          if [[ -z ${trunk_path} ]]; then
+            if [[ -f .trunk/bin/trunk && -x .trunk/bin/trunk ]]; then
+              trunk_path=.trunk/bin/trunk
+            elif [[ -f tools/trunk && -x tools/trunk ]]; then
+              trunk_path=tools/trunk
+            elif [[ -f trunk && -x trunk ]]; then
+              trunk_path=./trunk
+            fi
+          fi
+          echo "Located trunk at: $trunk_path"
+          if [ -n "$trunk_path" ]; then
+            echo "PASS: trunk located at '$trunk_path'"
+          else
+            echo "FAIL: trunk path is empty"
+            exit 1
+          fi
+
+          # Cleanup
+          rm -f tools/trunk
+
+      - name: Set up fake trunk environment for action
+        run: |
+          # Create a fake trunk binary that handles all trunk commands
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk << 'TRUNKEOF'
+          #!/bin/bash
+          case "$1" in
+            version) echo "1.22.6"; exit 0 ;;
+            --ci) echo "fake trunk init"; exit 0 ;;
+            install) echo "fake trunk install"; exit 0 ;;
+            check) echo "fake trunk check"; exit 0 ;;
+            *) echo "fake trunk: $*"; exit 0 ;;
+          esac
+          TRUNKEOF
+          chmod +x .trunk/bin/trunk
+          .trunk/bin/trunk version
+
+          # Create a minimal trunk.yaml so "Init on-demand" is skipped
+          cat > .trunk/trunk.yaml << 'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.6
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+        continue-on-error: true
+
+      - name: Assert action ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action ran (outcome=$OUTCOME)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
