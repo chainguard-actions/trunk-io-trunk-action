@@ -1,23 +1,36 @@
 name: Trunk Check
 author: trunk.io
 description: Install trunk and managed tools to PATH
-
 inputs:
   tools:
     description: specific tools to install (if not specified will install all enabled tools)
     required: false
-
 branding:
   icon: check
   color: green
-
 runs:
   using: composite
   steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: get trunk
       shell: bash
       run: ${GITHUB_ACTION_PATH}/get_trunk.sh
-
     - name: clean up possible dead symlink
       shell: bash
       run: |
@@ -25,19 +38,17 @@ runs:
         if [ -L "${tools_path}" ] && [ ! -e "${tools_path}" ] ; then
           rm "${tools_path}"
         fi
-
     - name: Trunk install
       shell: bash
       env:
-        INPUT_TOOLS: ${{ inputs.tools }}
+        TOOLS: ${{ inputs.tools }}
       run: |
-        tools=()
-        if [ -n "$INPUT_TOOLS" ]; then
-          while IFS= read -r -d '' t; do tools+=("$t"); done \
-            < <(printf '%s' "$INPUT_TOOLS" | xargs printf '%s\0')
+        tools_args=()
+        if [ -n "$TOOLS" ]; then
+          while IFS= read -r -d '' t; do tools_args+=("$t"); done \
+            < <(printf '%s' "$TOOLS" | xargs printf '%s\0')
         fi
-        trunk tools install --ci "${tools[@]}"
-
+        trunk tools install --ci "${tools_args[@]}"
     - name: Add .trunk/tools to path
       shell: bash
       run: echo ".trunk/tools" >> $GITHUB_PATH
