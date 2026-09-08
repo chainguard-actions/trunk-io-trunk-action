@@ -1,4 +1,4 @@
-name: Test assignees and reviewers inputs
+name: Test trunk-path input
 on:
   workflow_dispatch:
 jobs:
@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up minimal trunk config
+      - name: Set up minimal trunk config and fake trunk binary
         run: |
           mkdir -p .trunk
           cat > .trunk/trunk.yaml <<'EOF'
@@ -15,20 +15,27 @@ jobs:
           cli:
             version: 1.22.2
           EOF
+          # Create a fake trunk binary at a known path
+          mkdir -p /tmp/fake-trunk-bin
+          cat > /tmp/fake-trunk-bin/trunk <<'SCRIPT'
+          #!/bin/bash
+          echo "Already up to date"
+          exit 0
+          SCRIPT
+          chmod +x /tmp/fake-trunk-bin/trunk
 
       - id: action
         uses: .
         continue-on-error: true
         with:
-          assignees: "octocat"
-          reviewers: "octocat"
+          trunk-path: /tmp/fake-trunk-bin/trunk
           base: main
-          branch-name: trunk-io/update-trunk-assignees-test
+          branch-name: trunk-io/update-trunk-path-test
           labels: trunk
           add-paths: .trunk
           setup-deps: "false"
 
-      - name: Assert action ran with assignees and reviewers inputs
+      - name: Assert action ran with trunk-path input
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |

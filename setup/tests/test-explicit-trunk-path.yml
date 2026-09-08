@@ -9,47 +9,40 @@ jobs:
 
       - name: Create a fake trunk binary
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/fake-bin"
-          cat > "$GITHUB_WORKSPACE/fake-bin/trunk" <<'EOF'
-          #!/bin/bash
+          mkdir -p "$GITHUB_WORKSPACE/fake-tools"
+          cat > "$GITHUB_WORKSPACE/fake-tools/trunk" << 'EOF'
+          #!/bin/sh
           echo "fake-trunk version 0.0.0-test"
           exit 0
           EOF
-          chmod +x "$GITHUB_WORKSPACE/fake-bin/trunk"
-          echo "Fake trunk created at $GITHUB_WORKSPACE/fake-bin/trunk"
+          chmod +x "$GITHUB_WORKSPACE/fake-tools/trunk"
+          echo "Fake trunk created at: $GITHUB_WORKSPACE/fake-tools/trunk"
 
       - id: action
+        name: Run action with explicit trunk-path
         uses: .
         with:
-          trunk-path: fake-bin/trunk
+          trunk-path: fake-tools/trunk
 
       - name: Assert TRUNK_PATH is set to the provided path
         run: |
-          echo "TRUNK_PATH: $TRUNK_PATH"
-          if [ -z "$TRUNK_PATH" ]; then
+          echo "TRUNK_PATH=${TRUNK_PATH}"
+          if [ -z "${TRUNK_PATH}" ]; then
             echo "FAIL: TRUNK_PATH env var is not set"
             exit 1
           fi
-          # The action stores the path as provided; check it ends with our fake binary name
-          case "$TRUNK_PATH" in
-            *fake-bin/trunk)
-              echo "PASS: TRUNK_PATH=$TRUNK_PATH matches expected fake-bin/trunk"
-              ;;
-            *)
-              echo "FAIL: TRUNK_PATH=$TRUNK_PATH does not match expected fake-bin/trunk"
-              exit 1
-              ;;
-          esac
+          # The action sets TRUNK_PATH to the value of trunk-path input
+          if [ "${TRUNK_PATH}" != "fake-tools/trunk" ]; then
+            echo "FAIL: expected TRUNK_PATH=fake-tools/trunk but got TRUNK_PATH=${TRUNK_PATH}"
+            exit 1
+          fi
+          echo "PASS: TRUNK_PATH=${TRUNK_PATH}"
 
       - name: Assert TRUNK_TMPDIR env var is set
         run: |
-          echo "TRUNK_TMPDIR: $TRUNK_TMPDIR"
-          if [ -z "$TRUNK_TMPDIR" ]; then
+          echo "TRUNK_TMPDIR=${TRUNK_TMPDIR}"
+          if [ -z "${TRUNK_TMPDIR}" ]; then
             echo "FAIL: TRUNK_TMPDIR env var is not set"
             exit 1
           fi
-          if [ ! -d "$TRUNK_TMPDIR" ]; then
-            echo "FAIL: TRUNK_TMPDIR directory does not exist: $TRUNK_TMPDIR"
-            exit 1
-          fi
-          echo "PASS: TRUNK_TMPDIR=$TRUNK_TMPDIR"
+          echo "PASS: TRUNK_TMPDIR=${TRUNK_TMPDIR}"

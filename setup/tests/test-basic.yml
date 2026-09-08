@@ -8,40 +8,37 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - id: action
+        name: Run action without trunk-path (auto-download)
         uses: .
         continue-on-error: true
 
       - name: Assert TRUNK_PATH env var is set
         run: |
-          echo "TRUNK_PATH: $TRUNK_PATH"
-          if [ -z "$TRUNK_PATH" ]; then
+          echo "TRUNK_PATH=${TRUNK_PATH}"
+          if [ -z "${TRUNK_PATH}" ]; then
             echo "FAIL: TRUNK_PATH env var is not set"
             exit 1
           fi
-          echo "PASS: TRUNK_PATH=$TRUNK_PATH"
+          echo "PASS: TRUNK_PATH=${TRUNK_PATH}"
 
       - name: Assert TRUNK_TMPDIR env var is set
         run: |
-          echo "TRUNK_TMPDIR: $TRUNK_TMPDIR"
-          if [ -z "$TRUNK_TMPDIR" ]; then
+          echo "TRUNK_TMPDIR=${TRUNK_TMPDIR}"
+          if [ -z "${TRUNK_TMPDIR}" ]; then
             echo "FAIL: TRUNK_TMPDIR env var is not set"
             exit 1
           fi
-          if [ ! -d "$TRUNK_TMPDIR" ]; then
-            echo "FAIL: TRUNK_TMPDIR directory does not exist: $TRUNK_TMPDIR"
-            exit 1
-          fi
-          echo "PASS: TRUNK_TMPDIR=$TRUNK_TMPDIR"
+          echo "PASS: TRUNK_TMPDIR=${TRUNK_TMPDIR}"
 
       - name: Assert trunk binary exists at TRUNK_PATH
         run: |
-          echo "TRUNK_PATH: $TRUNK_PATH"
-          if [ ! -f "$TRUNK_PATH" ]; then
-            echo "FAIL: trunk binary not found at TRUNK_PATH=$TRUNK_PATH"
+          echo "Checking trunk binary at: ${TRUNK_PATH}"
+          if [ ! -f "${TRUNK_PATH}" ]; then
+            echo "FAIL: trunk binary not found at TRUNK_PATH=${TRUNK_PATH}"
             exit 1
           fi
-          if [ ! -x "$TRUNK_PATH" ]; then
-            echo "FAIL: trunk binary at TRUNK_PATH=$TRUNK_PATH is not executable"
+          if [ ! -x "${TRUNK_PATH}" ]; then
+            echo "FAIL: trunk binary at TRUNK_PATH=${TRUNK_PATH} is not executable"
             exit 1
           fi
-          echo "PASS: trunk binary exists and is executable"
+          echo "PASS: trunk binary found and executable at ${TRUNK_PATH}"

@@ -3,14 +3,12 @@
 set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
-# Tokenize UPGRADE_ARGUMENTS into an array to safely handle whitespace-separated flags
-# without allowing shell metacharacters to be interpreted.
 upgrade_args=()
 if [ -n "${UPGRADE_ARGUMENTS}" ]; then
   while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
     < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
 fi
-upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]+${upgrade_args[@]}}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -27,7 +25,7 @@ if [[ ${trimmed_upgrade_output} == *"cli upgrade"* ]]; then
   title_message="Upgrade trunk to ${new_cli_version}"
 fi
 
-if [[ ${LOWERCASE_TITLE} == "true" ]]; then
+if [[ "${LOWERCASE_TITLE}" == "true" ]]; then
   title_message=$(echo "${title_message}" | tr '[:upper:]' '[:lower:]')
 fi
 
@@ -43,21 +41,18 @@ rm -f .trunk/landing-state.json
 formatted_output=$(echo "${trimmed_upgrade_output}" | sed -e 's/^\(  \)\{0,1\}  /\1- /')
 
 # Step 5: Generate markdown
-description=$(echo "${formatted_output}" | sed -e '/^UPGRADE_CONTENTS/{
-r /dev/stdin
+description=$(echo "${formatted_output}" | sed -e '/^UPGRADE_CONTENTS/{r /dev/stdin
 d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
-# Sanitize title_message: strip newlines/carriage returns to prevent env injection
-safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
-
-# Use a random delimiter for the heredoc to prevent injection via the description value
-random_delimiter="EOF_$(head -c 16 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)"
+# Use a random delimiter to prevent content from prematurely terminating the heredoc.
+EOF_DELIM="EOF_$(openssl rand -hex 16)"
 {
-  echo "PR_DESCRIPTION<<${random_delimiter}"
-  echo "${description}"
-  echo "${random_delimiter}"
-} >>"${GITHUB_ENV}"
+  echo "PR_DESCRIPTION<<${EOF_DELIM}"
+  printf '%s\n' "${description}"
+  echo "${EOF_DELIM}"
+} >> "${GITHUB_ENV}"
 
-echo "PR_TITLE=${safe_title}" >>"${GITHUB_ENV}"
+safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
+echo "PR_TITLE=${safe_title}" >> "${GITHUB_ENV}"

@@ -41,14 +41,14 @@ runs:
     - name: Trunk install
       shell: bash
       env:
-        TOOLS: ${{ inputs.tools }}
+        INPUT_TOOLS: ${{ inputs.tools }}
       run: |
-        tools_args=()
-        if [ -n "$TOOLS" ]; then
-          while IFS= read -r -d '' t; do tools_args+=("$t"); done \
-            < <(printf '%s' "$TOOLS" | xargs printf '%s\0')
+        tools=()
+        if [ -n "$INPUT_TOOLS" ]; then
+          while IFS= read -r -d '' t; do tools+=("$t"); done \
+            < <(printf '%s' "$INPUT_TOOLS" | xargs printf '%s\0')
         fi
-        trunk tools install --ci "${tools_args[@]}"
+        trunk tools install --ci "${tools[@]}"
     - name: Add .trunk/tools to path
       shell: bash
       run: echo ".trunk/tools" >> $GITHUB_PATH

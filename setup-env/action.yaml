@@ -107,8 +107,7 @@ runs:
         if [ -z "${PNPM_VERSION}" ]; then
           PNPM_VERSION=latest
         fi
-        safe_pnpm_version=$(printf '%s' "${PNPM_VERSION}" | tr -d '\n\r')
-        echo "PNPM_VERSION=${safe_pnpm_version}" >>$GITHUB_ENV
+        echo "PNPM_VERSION=${PNPM_VERSION}" >>$GITHUB_ENV
     - name: Install pnpm
       if: env.PACKAGE_MANAGER == 'pnpm'
       uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
@@ -127,7 +126,7 @@ runs:
       env:
         SETUP_NODE_OUTCOME: ${{ steps.setup_node.outcome }}
       run: |
-        if [ "${SETUP_NODE_OUTCOME}" == "success" ]; then
+        if [ "$SETUP_NODE_OUTCOME" == "success" ]; then
           exit 0
         fi
         echo "::warning::Failed to install specified node version."
@@ -151,15 +150,7 @@ runs:
       id: install_packages
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash
-      env:
-        INSTALL_CMD: ${{ env.INSTALL_CMD }}
-      run: |
-        cmd=()
-        if [ -n "${INSTALL_CMD}" ]; then
-          while IFS= read -r -d '' t; do cmd+=("$t"); done \
-            < <(printf '%s' "${INSTALL_CMD}" | xargs printf '%s\0')
-        fi
-        "${cmd[@]}"
+      run: $INSTALL_CMD
       continue-on-error: true
     - name: Check for package install
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
@@ -167,7 +158,7 @@ runs:
       env:
         INSTALL_PACKAGES_OUTCOME: ${{ steps.install_packages.outcome }}
       run: |
-        if [ "${INSTALL_PACKAGES_OUTCOME}" == "success" ]; then
+        if [ "$INSTALL_PACKAGES_OUTCOME" == "success" ]; then
           exit 0
         fi
         echo "FAILED_NODE_PACKAGE_INSTALL=true" >>$GITHUB_ENV
@@ -179,4 +170,4 @@ runs:
         fi
         echo "::warning::Failed to install node packages."
         echo "::warning::Disabling linters that depend on node packages."
-        "${TRUNK_PATH}" check disable eslint stylelint
+        ${TRUNK_PATH} check disable eslint stylelint

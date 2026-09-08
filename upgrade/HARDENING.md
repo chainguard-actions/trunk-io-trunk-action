@@ -16,32 +16,48 @@ Action **trunk-io--trunk-action--upgrade/v2.0.0** was hardened automatically. 2 
 
 ### script-injection (severity: high)
 
-Sub-rule (a): `${{ github.action_path }}` is interpolated directly inside `run:` shell command strings in multiple steps of action.yaml. Any `${{ ... }}` expression inside a `run:` block is a script-injection risk because the value is substituted into the shell command string before the shell parses it. Affected lines:
-- "Locate trunk" step: `${{ github.action_path }}/../setup/locate_trunk.sh`
-- "Detect setup strategy" step: `ln -s ${{ github.action_path }}/../setup-env .trunk/setup-ci`
-- "Run upgrade" step: `${{ github.action_path }}/upgrade.sh`
-- "Cleanup temporary files" step: `${{ github.action_path }}/../cleanup.sh`
+Rule (a): Four `run:` blocks in action.yaml directly interpolate `${{ github.action_path }}` inside shell command strings. Any `${{ ... }}` expression inside a `run:` block is a script-injection risk because the value is substituted by the Actions template engine before the shell ever sees it, bypassing shell quoting. The safe alternative is to use the `$GITHUB_ACTION_PATH` environment variable instead.
+
+- Line 113: `${{ github.action_path }}/../setup/locate_trunk.sh`
+- Line 133: `ln -s ${{ github.action_path }}/../setup-env .trunk/setup-ci`
+- Line 146: `${{ github.action_path }}/upgrade.sh`
+- Line 156: `${{ github.action_path }}/../cleanup.sh`
 
 Locations:
 
-- `action.yaml:96`
-- `action.yaml:108`
-- `action.yaml:119`
-- `action.yaml:127`
+- `action.yaml:113`
+- `action.yaml:133`
+- `action.yaml:146`
+- `action.yaml:156`
 
-### github-env-injection (severity: high)
+### script-injection (severity: high)
 
-upgrade.sh writes values derived from caller-controlled (untrusted) env vars to `$GITHUB_ENV` without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). Specifically:
-1. `${description}` — derived from `${trimmed_upgrade_output}` which is processed from `${UPGRADE_ARGUMENTS}` (set by the calling workflow via `inputs.arguments`) — is written to `$GITHUB_ENV` using a heredoc (`PR_DESCRIPTION<<EOF ... EOF`). A newline in the value can break the heredoc delimiter and inject arbitrary env vars.
-2. `${title_message}` — influenced by `${LOWERCASE_TITLE}` (set from `inputs.lowercase-title`) — is written as `PR_TITLE=${title_message}` to `$GITHUB_ENV` without sanitization. A newline in the value can inject additional environment variables.
-Neither write is preceded by the required `printf '%s' "$VAR" | tr -d '\n\r'` sanitization.
+Rule (b): In upgrade.sh line 7, the environment variable `${UPGRADE_ARGUMENTS}` (sourced from `inputs.arguments` via the `env:` block in action.yaml) is expanded **unquoted** inside the shell command:
+
+```
+upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n ${UPGRADE_ARGUMENTS} | sed ...)
+```
+
+An unquoted shell expansion allows an attacker-controlled `inputs.arguments` value containing shell metacharacters (`;`, `|`, `&`, `$(...)`, whitespace, glob chars) to be interpreted by the shell, enabling command injection. The fix is to double-quote the expansion: `"${UPGRADE_ARGUMENTS}"`.
 
 Locations:
 
-- `upgrade.sh:47`
-- `upgrade.sh:51`
+- `upgrade.sh:7`
 
 ## Iteration Notes
+
+### Iteration 1
+
+**Fixes applied:** script-injection
+
+**Notes:**
+
+Fixed all 5 script injection issues:
+1. action.yaml line 113: Replaced `${{ github.action_path }}/../setup/locate_trunk.sh` with `"$GITHUB_ACTION_PATH/../setup/locate_trunk.sh"`
+2. action.yaml line 133: Replaced `ln -s ${{ github.action_path }}/../setup-env` with `ln -s "$GITHUB_ACTION_PATH/../setup-env"`
+3. action.yaml line 146: Replaced `${{ github.action_path }}/upgrade.sh` with `"$GITHUB_ACTION_PATH/upgrade.sh"`
+4. action.yaml line 156: Replaced `${{ github.action_path }}/../cleanup.sh` with `"$GITHUB_ACTION_PATH/../cleanup.sh"`
+5. upgrade.sh line 7: Replaced unquoted `${UPGRADE_ARGUMENTS}` with a safe xargs-based tokenization into a bash array (`upgrade_args`), using the empty-array-safe expansion `"${upgrade_args[@]+"${upgrade_args[@]}"}"` to handle the case where no arguments are provided. The `if [ -n ... ]` guard prevents xargs from emitting an empty token when the variable is empty.
 
 ### Iteration 1
 
@@ -49,16 +65,9 @@ Locations:
 
 **Notes:**
 
-Fixed script-injection in action.yaml by moving all 4 occurrences of `${{ github.action_path }}` from run: shell strings into env: blocks (as ACTION_PATH), then referencing them as quoted shell variables. Fixed github-env-injection in upgrade.sh by: (1) sanitizing title_message with `printf '%s' | tr -d '\n\r'` before writing PR_TITLE to GITHUB_ENV, and (2) using a cryptographically random heredoc delimiter for PR_DESCRIPTION to prevent an attacker-controlled description value from matching the delimiter and injecting additional environment variables.
-
-### Iteration 2
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed upgrade.sh:
-1. Line 7: Double-quoted `${TRUNK_PATH}` → `"${TRUNK_PATH}"`. Replaced unquoted `${UPGRADE_ARGUMENTS}` with a safe xargs-based tokenization into a bash array (`upgrade_args`), then expanded as `"${upgrade_args[@]}"`. This prevents shell metacharacter injection while correctly handling the multi-argument nature of the `arguments` input.
-2. Line 30: Double-quoted `${TRUNK_PATH}` → `"${TRUNK_PATH}"` in the `daemon shutdown` call.
-The script uses `#!/bin/bash`, so bash arrays and process substitution (`< <(...)`) are valid.
+Fixed all four findings in hardened/action/upgrade.sh:
+1. Quoted '${TRUNK_PATH}' in both command positions (lines 11 and 31) → '"${TRUNK_PATH}"' to prevent shell metacharacter injection.
+2. Quoted '${LOWERCASE_TITLE}' in the [[ ]] conditional (line 26) → '"${LOWERCASE_TITLE}"'.
+3. Replaced the fixed 'EOF' heredoc delimiter for PR_DESCRIPTION with a cryptographically random delimiter ('EOF_$(openssl rand -hex 16)') so attacker-controlled content in the description can never match the delimiter and inject additional GITHUB_ENV entries.
+4. Added newline sanitization for PR_TITLE: 'safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')' before writing to $GITHUB_ENV.
 
