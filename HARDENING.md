@@ -10,70 +10,89 @@
 
 **Harden Agent Version:** `2`
 
-Action **trunk-io--trunk-action/v1.3.1** was hardened automatically. 37 finding(s) were identified and resolved across 4 iteration(s).
+Action **trunk-io--trunk-action/v1.3.1** was hardened automatically. 32 finding(s) were identified and resolved across 3 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): The 'Post-init steps' run: block directly executes `${{ inputs.post-init }}` as a shell command. This allows any caller to inject arbitrary shell commands by supplying a malicious value for the `post-init` input.
+Sub-rule (a): Multiple ${{ }} expressions are interpolated directly inside run: shell command strings across several action files.
+
+1. action.yaml — `run: ${{ inputs.post-init }}` executes arbitrary shell commands supplied by the caller as the entire run: value. This is a direct arbitrary code execution vector.
+2. action.yaml — `if [[ "${{ inputs.check-mode }}" == "payload" ]]` interpolates inputs.check-mode directly into a shell conditional.
+3. action.yaml — `timeout ${{ inputs.timeout-seconds }} ${GITHUB_ACTION_PATH}/pull_request.sh` (and three similar blocks for push.sh, all.sh, trunk_merge.sh) interpolates inputs.timeout-seconds directly into shell commands.
+4. action.yaml — `ln -s ${{ github.action_path }}/setup-env .trunk/setup-ci` interpolates github.action_path directly into a shell command.
+5. install/action.yaml — `run: trunk tools install --ci ${{ inputs.tools }}` interpolates inputs.tools directly into a shell command, allowing argument injection.
+6. setup-env/action.yaml — `if [ ${{ steps.setup_node.outcome }} == "success" ]` and `if [ ${{ steps.install_packages.outcome }} == "success" ]` interpolate steps context directly into shell conditionals.
+7. setup-env/action.yaml — `run: ${{ env.INSTALL_CMD }}` executes the entire env.INSTALL_CMD expression as the run: value.
+8. upgrade/action.yaml — `${{ github.action_path }}/../setup/locate_trunk.sh`, `ln -s ${{ github.action_path }}/../setup-env`, `${{ github.action_path }}/upgrade.sh`, and `${{ github.action_path }}/../cleanup.sh` all interpolate github.action_path directly into shell commands.
 
 Locations:
 
-- `action.yaml:196`
-
-### script-injection (severity: high)
-
-Sub-rule (a): The 'Set up inputs' run: block interpolates multiple ${{ inputs.* }} and ${{ github.* }} expressions directly inside the shell script — including `if [[ "${{ inputs.check-mode }}" == "payload" ]]`, and many values written into a heredoc to $GITHUB_ENV (e.g. `INPUT_GITHUB_TOKEN=${{ inputs.github-token }}`, `INPUT_TRUNK_TOKEN=${{ inputs.trunk-token }}`, `INPUT_ARGUMENTS=${{ inputs.arguments }}`, `GITHUB_REF_NAME=${{ github.ref_name }}`, etc.). Any of these expressions are substituted by the Actions runner before the shell sees the script, enabling script injection.
-
-Locations:
-
-- `action.yaml:107`
-
-### script-injection (severity: high)
-
-Sub-rule (a): The 'Run trunk check on pull request', 'Run trunk check on push', 'Run trunk check on all', and 'Run trunk check on Trunk Merge' steps all interpolate `${{ inputs.timeout-seconds }}` directly inside the run: shell command string (e.g. `timeout ${{ inputs.timeout-seconds }} ...` and `if [[ "${{ inputs.timeout-seconds }}" != "0" ]]`). A malicious value can inject shell metacharacters.
-
-Locations:
-
-- `action.yaml:214`
-- `action.yaml:225`
-- `action.yaml:236`
-- `action.yaml:247`
-
-### script-injection (severity: high)
-
-Sub-rule (a): The 'Detect setup strategy' run: block interpolates `${{ github.action_path }}` directly inside a shell command: `ln -s ${{ github.action_path }}/setup-env .trunk/setup-ci`. While github.action_path is GitHub-controlled, any ${{ }} expression inside a run: block is a script-injection risk per the check rules.
-
-Locations:
-
-- `action.yaml:188`
-
-### script-injection (severity: high)
-
-Sub-rule (a): The 'Trunk install' run: block in install/action.yaml interpolates `${{ inputs.tools }}` directly into a shell command: `trunk tools install --ci ${{ inputs.tools }}`. A caller can inject shell metacharacters via the `tools` input.
-
-Locations:
-
-- `install/action.yaml:22`
-
-### script-injection (severity: high)
-
-Sub-rule (a): Multiple run: blocks in upgrade/action.yaml interpolate `${{ github.action_path }}` directly inside shell commands: the 'Locate trunk' step runs `${{ github.action_path }}/../setup/locate_trunk.sh`, the 'Run upgrade' step runs `${{ github.action_path }}/upgrade.sh`, and the 'Cleanup temporary files' step runs `${{ github.action_path }}/../cleanup.sh`. Any ${{ }} expression inside a run: block is a script-injection risk per the check rules.
-
-Locations:
-
-- `upgrade/action.yaml:100`
-- `upgrade/action.yaml:119`
-- `upgrade/action.yaml:127`
+- `action.yaml:121`
+- `action.yaml:113`
+- `action.yaml:148`
+- `action.yaml:155`
+- `action.yaml:165`
+- `action.yaml:172`
+- `action.yaml:182`
+- `action.yaml:189`
+- `action.yaml:133`
+- `install/action.yaml:20`
+- `setup-env/action.yaml:80`
+- `setup-env/action.yaml:113`
+- `setup-env/action.yaml:107`
+- `upgrade/action.yaml:68`
+- `upgrade/action.yaml:80`
+- `upgrade/action.yaml:90`
+- `upgrade/action.yaml:97`
 
 ### github-env-injection (severity: high)
 
-The 'Set up inputs' run: block in action.yaml writes many untrusted input values directly to $GITHUB_ENV via a heredoc without sanitization. Values such as `${{ inputs.github-token }}`, `${{ inputs.trunk-token }}`, `${{ inputs.arguments }}`, `${{ inputs.check-mode }}`, `${{ inputs.label }}`, `${{ inputs.upload-series }}`, `${{ github.ref_name }}`, `${{ github.event.pull_request.base.sha }}`, `${{ github.event.pull_request.head.sha }}`, `${{ github.event.pull_request.number }}`, etc. are written directly into $GITHUB_ENV without the required `printf '%s' ... | tr -d '\n\r'` sanitization step. A newline embedded in any of these values can inject arbitrary environment variables.
+The 'Set up inputs' step in action.yaml writes numerous untrusted input values directly to $GITHUB_ENV via a heredoc without any sanitization (no `printf '%s' ... | tr -d '\n\r'` step). The following values from inputs.* and github.* contexts are written unsanitized:
+- `GITHUB_TOKEN=${{ github.token }}`
+- `INPUT_GITHUB_TOKEN=${{ inputs.github-token }}`
+- `INPUT_TRUNK_TOKEN=${{ inputs.trunk-token }}`
+- `TRUNK_TOKEN=${{ inputs.trunk-token }}`
+- `GITHUB_EVENT_PULL_REQUEST_BASE_SHA=${{ github.event.pull_request.base.sha }}`
+- `GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK=${{ github.event.pull_request.head.repo.fork }}`
+- `GITHUB_EVENT_PULL_REQUEST_HEAD_SHA=${{ github.event.pull_request.head.sha }}`
+- `GITHUB_EVENT_PULL_REQUEST_NUMBER=${{ github.event.pull_request.number }}`
+- `GITHUB_REF_NAME=${{ github.ref_name }}`
+- `INPUT_ARGUMENTS=${{ inputs.arguments }}`
+- `INPUT_CACHE_KEY=trunk-${{ inputs.cache-key }}-...`
+- `INPUT_CHECK_MODE=${{ inputs.check-mode }}`
+- `INPUT_LABEL=${{ inputs.label }}`
+- `INPUT_TRUNK_PATH=${{ inputs.trunk-path }}`
+- `INPUT_UPLOAD_SERIES=${{ inputs.upload-series }}`
+- and many more.
+
+An attacker-controlled value containing newlines can inject arbitrary environment variable assignments into $GITHUB_ENV, potentially overriding security-sensitive variables for subsequent steps.
 
 Locations:
 
-- `action.yaml:107`
+- `action.yaml:113`
+- `action.yaml:114`
+- `action.yaml:130`
+- `action.yaml:131`
+- `action.yaml:132`
+- `action.yaml:133`
+- `action.yaml:134`
+- `action.yaml:135`
+- `action.yaml:136`
+- `action.yaml:137`
+- `action.yaml:138`
+- `action.yaml:139`
+- `action.yaml:140`
+- `action.yaml:141`
+- `action.yaml:142`
+- `action.yaml:143`
+- `action.yaml:144`
+- `action.yaml:145`
+- `action.yaml:146`
+- `action.yaml:147`
+- `action.yaml:148`
+- `action.yaml:149`
 
 ### static-inline-injection (severity: high)
 
@@ -323,19 +342,25 @@ Locations:
 
 **Notes:**
 
-Fixed all script-injection, github-env-injection, and static-inline-injection findings across three files:
+Fixed all script injection and github-env-injection findings across action.yaml, install/action.yaml, setup-env/action.yaml, and upgrade/action.yaml:
 
-1. action.yaml 'Set up inputs' step: Moved all ${{ inputs.* }} and ${{ github.* }} expressions to an env: block with _RAW suffixes. The shell script now reads from env vars and sanitizes each value with `printf '%s' "$VAR" | tr -d '\n\r'` before writing to $GITHUB_ENV, preventing both script injection and newline-based env injection attacks.
+1. action.yaml - Set up inputs step: Moved all ${{ inputs.* }} and ${{ github.* }} expressions to env: block with EXPR_* prefix variables. Replaced heredoc GITHUB_ENV writes with individual echo statements using a safe() function (printf '%s' | tr -d '\n\r') to strip newlines and prevent env injection.
 
-2. action.yaml 'Detect setup strategy' step: Replaced `${{ github.action_path }}` with `${GITHUB_ACTION_PATH}` (the built-in env var GitHub Actions sets automatically).
+2. action.yaml - Detect setup strategy step: Replaced ${{ github.action_path }} with ${GITHUB_ACTION_PATH} built-in env var.
 
-3. action.yaml 'Post-init steps' step: Moved `${{ inputs.post-init }}` to env: block as POST_INIT, then used `eval "$POST_INIT"` in the run: block.
+3. action.yaml - Post-init steps: Changed run: ${{ inputs.post-init }} to use env var POST_INIT with eval "$POST_INIT".
 
-4. action.yaml 'Run trunk check on pull request/push/all/Trunk Merge' steps: Moved `${{ inputs.timeout-seconds }}` to env: TIMEOUT_SECONDS in each step and replaced inline expressions with "$TIMEOUT_SECONDS".
+4. action.yaml - All 4 run trunk check steps: Replaced ${{ inputs.timeout-seconds }} with ${INPUT_TIMEOUT_SECONDS} (already set in GITHUB_ENV by Set up inputs step).
 
-5. install/action.yaml 'Trunk install' step: Moved `${{ inputs.tools }}` to env: INPUT_TOOLS and used `${INPUT_TOOLS:+"$INPUT_TOOLS"}` to safely handle the optional argument.
+5. install/action.yaml - Trunk install step: Moved ${{ inputs.tools }} to env var INPUT_TOOLS and used xargs-based tokenization for the list input.
 
-6. upgrade/action.yaml: Replaced all `${{ github.action_path }}` references in 'Locate trunk', 'Detect setup strategy', 'Run upgrade', and 'Cleanup temporary files' steps with `${GITHUB_ACTION_PATH}` using the built-in env var.
+6. setup-env/action.yaml - Check for node installation: Moved ${{ steps.setup_node.outcome }} to env var SETUP_NODE_OUTCOME.
+
+7. setup-env/action.yaml - Install packages step: Changed run: ${{ env.INSTALL_CMD }} to run: eval "$INSTALL_CMD".
+
+8. setup-env/action.yaml - Check for package install: Moved ${{ steps.install_packages.outcome }} to env var INSTALL_PACKAGES_OUTCOME.
+
+9. upgrade/action.yaml - All steps with ${{ github.action_path }}: Replaced with ${GITHUB_ACTION_PATH} built-in env var.
 
 ### Iteration 2
 
@@ -343,27 +368,17 @@ Fixed all script-injection, github-env-injection, and static-inline-injection fi
 
 **Notes:**
 
-Fixed all four script-injection findings:
-1. setup-env/action.yaml: 'Check for node installation' step - moved `${{ steps.setup_node.outcome }}` to env block as SETUP_NODE_OUTCOME, referenced as "$SETUP_NODE_OUTCOME" in shell.
-2. setup-env/action.yaml: 'Install packages' step - moved `${{ env.INSTALL_CMD }}` to env block as INSTALL_CMD, used `eval "$INSTALL_CMD"` in shell body instead of using the expression as the entire run: value.
-3. setup-env/action.yaml: 'Check for package install' step - moved `${{ steps.install_packages.outcome }}` to env block as INSTALL_PACKAGES_OUTCOME, referenced as "$INSTALL_PACKAGES_OUTCOME" in shell.
-4. action.yaml: 'Unpack annotations artifact' step - moved `${{ env.TRUNK_TMPDIR }}` to env block as TRUNK_TMPDIR, referenced as "$TRUNK_TMPDIR" (properly quoted) in shell.
+Fixed two script-injection findings in hardened/action/action.yaml:
+
+1. 'Unpack annotations artifact' step (line ~308): Moved `${{ env.TRUNK_TMPDIR }}` out of the `run:` shell string into an `env:` block as `TRUNK_TMPDIR_VAL`, then referenced it as `"$TRUNK_TMPDIR_VAL"` in the shell script.
+
+2. 'Post-init steps' step (line ~230): Replaced `eval "$POST_INIT"` with writing the user-provided content to a temporary script file using `printf '%s\n' "$POST_INIT" > "$_post_init_script"` and executing it with `bash "$_post_init_script"`. This avoids eval-based code execution while preserving the intended functionality of running user-provided shell commands.
 
 ### Iteration 3
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed the script injection vulnerability in the 'Post-init steps' step of hardened/action/action.yaml. Replaced `eval "$POST_INIT"` with a safer approach that writes the post-init commands to a temporary file using `printf '%s\n' "$POST_INIT" > "$_post_init_script"` and then executes it with `bash "$_post_init_script"`. This eliminates eval's double-parsing of shell metacharacters while preserving the intended functionality. The `POST_INIT` env var continues to receive the value via the step's `env:` block (not interpolated into the run script), which is the correct pattern for handling user inputs.
-
-### Iteration 1
 
 **Fixes applied:** github-env-injection, script-injection
 
 **Notes:**
 
-Fixed two security issues:
-1. **github-env-injection** (setup/locate_trunk.sh): Sanitized `INPUT_TRUNK_PATH` using `printf '%s' ... | tr -d '\n\r'` before assigning to `trunk_path`, and added a second sanitization step (`safe_trunk_path`) before writing `TRUNK_PATH` to `$GITHUB_ENV`. This prevents newline-injection attacks via the `trunk-path` input.
-2. **script-injection** (upgrade/upgrade.sh): Added double-quotes around `${UPGRADE_ARGUMENTS}` in the trunk upgrade command invocation, and around `${LOWERCASE_TITLE}` in the `[[ ]]` conditional test. This prevents shell metacharacter injection from caller-controlled inputs. Also removed the now-unnecessary `trunk-ignore(shellcheck/SC2086)` comment since the variable is now properly quoted.
+Fixed github-env-injection in setup/locate_trunk.sh by sanitizing trunk_path with `printf '%s' | tr -d '\n\r'` before writing to GITHUB_ENV. Fixed script-injection in all.sh, pull_request.sh, push.sh, trunk_merge.sh, annotate.sh, populate_cache_only.sh, and upgrade/upgrade.sh by replacing unquoted ${INPUT_ARGUMENTS}/${UPGRADE_ARGUMENTS} expansions with properly tokenized bash arrays using the xargs/null-delimiter pattern. Also fixed related unquoted variables (htl_arg, upload_id_arg, annotation_argument) in all.sh and trunk_merge.sh by converting them to arrays. Removed all # shellcheck disable=SC2086 comments that were masking the injection issues.
 

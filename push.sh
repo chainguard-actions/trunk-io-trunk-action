@@ -1,11 +1,17 @@
 #!/bin/bash
 
-# shellcheck disable=SC2086
-
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
   set -x
+fi
+
+# Tokenize INPUT_ARGUMENTS (a whitespace-separated list) into an array using
+# xargs so that quoted sub-arguments are handled correctly.
+input_arguments=()
+if [[ -n ${INPUT_ARGUMENTS} ]]; then
+  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
 fi
 
 fetch() {
@@ -22,7 +28,7 @@ if [[ ${GITHUB_EVENT_BEFORE} == "0000000000000000000000000000000000000000" ]]; t
     --ci \
     --all \
     --github-commit "${GITHUB_EVENT_AFTER}" \
-    ${INPUT_ARGUMENTS}
+    "${input_arguments[@]}"
   exit
 fi
 
@@ -44,4 +50,4 @@ fi
   --ci \
   --upstream "${upstream}" \
   --github-commit "${GITHUB_EVENT_AFTER}" \
-  ${INPUT_ARGUMENTS}
+  "${input_arguments[@]}"

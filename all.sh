@@ -1,11 +1,17 @@
 #!/bin/bash
 
-# shellcheck disable=SC2086
-
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
   set -x
+fi
+
+# Tokenize INPUT_ARGUMENTS (a whitespace-separated list) into an array using
+# xargs so that quoted sub-arguments are handled correctly.
+input_arguments=()
+if [[ -n ${INPUT_ARGUMENTS} ]]; then
+  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
 fi
 
 fetch() {
@@ -23,21 +29,22 @@ if [[ -z ${INPUT_TRUNK_TOKEN} ]]; then
     --ci \
     --all \
     --github-commit "${GITHUB_SHA}" \
-    ${INPUT_ARGUMENTS}
+    "${input_arguments[@]}"
 elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
   latest_raw_upload="$(mktemp)"
   prev_ref="$("${TRUNK_PATH}" check get-latest-raw-output \
     --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
     "${latest_raw_upload}")"
+  htl_args=()
   if [[ ${prev_ref} =~ .*"new series".* ]]; then
     echo "${prev_ref}"
-    htl_arg=""
   else
-    htl_arg="--htl-factories-path=${latest_raw_upload}"
+    htl_args+=("--htl-factories-path=${latest_raw_upload}")
     fetch origin "${prev_ref}"
   fi
+  upload_id_args=()
   if [[ -n ${INPUT_UPLOAD_ID-} ]]; then # if upload ID unset, skip it instead of erroring
-    upload_id_arg="--upload-id ${INPUT_UPLOAD_ID}"
+    upload_id_args=(--upload-id "${INPUT_UPLOAD_ID}")
     trunk_version="$(${TRUNK_PATH} version)"
     # trunk-ignore-begin(shellcheck/SC2312): the == will fail if anything inside the $() fails
     if sort_result=$(printf "%s\n%s\n" "${MINIMUM_UPLOAD_ID_VERSION}" "${trunk_version}" | sort --version-sort); then
@@ -49,21 +56,19 @@ elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
       echo "::warning::sort --version-sort failed - continuing without checking CLI version"
     fi
     # trunk-ignore-end(shellcheck/SC2312)
-  else
-    upload_id_arg=""
   fi
   "${TRUNK_PATH}" check \
     --all \
     --upload \
-    ${htl_arg} \
-    ${upload_id_arg} \
+    "${htl_args[@]}" \
+    "${upload_id_args[@]}" \
     --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-    ${INPUT_ARGUMENTS}
+    "${input_arguments[@]}"
 else
   "${TRUNK_PATH}" check \
     --all \
     --upload \
     --series "${INPUT_UPLOAD_SERIES:-${INPUT_GITHUB_REF_NAME}}" \
     --token "${INPUT_TRUNK_TOKEN}" \
-    ${INPUT_ARGUMENTS}
+    "${input_arguments[@]}"
 fi

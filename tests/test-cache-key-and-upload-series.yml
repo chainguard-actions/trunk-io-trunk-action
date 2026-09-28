@@ -1,4 +1,4 @@
-name: Test github-token, trunk-token, and label inputs
+name: Test cache-key and upload-series inputs
 on:
   workflow_dispatch:
 jobs:
@@ -30,11 +30,10 @@ jobs:
         uses: .
         with:
           check-mode: none
-          cache: "false"
-          github-token: ${{ github.token }}
-          trunk-token: ""
-          label: "linux"
+          cache: "true"
+          cache-key: "my-repo-main"
+          upload-series: "main"
 
-      - name: Assert action completed with token and label inputs
+      - name: Assert action completed with cache-key and upload-series inputs
         run: |
-          echo "PASS: action completed with github-token, trunk-token, and label inputs"
+          echo "PASS: action completed with cache-key and upload-series inputs"
