@@ -10,39 +10,26 @@
 
 **Harden Agent Version:** `2`
 
-Action **trunk-io--trunk-action--upgrade/v2.0.0** was hardened automatically. 2 finding(s) were identified and resolved across 2 iteration(s).
+Action **trunk-io--trunk-action--upgrade/v2.0.0** was hardened automatically. 1 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Rule (a): Four `run:` blocks in action.yaml directly interpolate `${{ github.action_path }}` inside shell command strings. Any `${{ ... }}` expression inside a `run:` block is a script-injection risk because the value is substituted by the Actions template engine before the shell ever sees it, bypassing shell quoting. The safe alternative is to use the `$GITHUB_ACTION_PATH` environment variable instead.
+Rule (a) violation: Four `run:` blocks in action.yaml directly interpolate `${{ github.action_path }}` inside shell command strings. Any `${{ ... }}` expression interpolated directly inside a `run:` block is a script-injection risk because the value is substituted by the YAML template engine before the shell ever sees it, bypassing shell quoting. Offending lines:
+- "Locate trunk" step: `${{ github.action_path }}/../setup/locate_trunk.sh`
+- "Detect setup strategy" step: `ln -s ${{ github.action_path }}/../setup-env .trunk/setup-ci`
+- "Run upgrade" step: `${{ github.action_path }}/upgrade.sh`
+- "Cleanup temporary files" step: `${{ github.action_path }}/../cleanup.sh`
 
-- Line 113: `${{ github.action_path }}/../setup/locate_trunk.sh`
-- Line 133: `ln -s ${{ github.action_path }}/../setup-env .trunk/setup-ci`
-- Line 146: `${{ github.action_path }}/upgrade.sh`
-- Line 156: `${{ github.action_path }}/../cleanup.sh`
-
-Locations:
-
-- `action.yaml:113`
-- `action.yaml:133`
-- `action.yaml:146`
-- `action.yaml:156`
-
-### script-injection (severity: high)
-
-Rule (b): In upgrade.sh line 7, the environment variable `${UPGRADE_ARGUMENTS}` (sourced from `inputs.arguments` via the `env:` block in action.yaml) is expanded **unquoted** inside the shell command:
-
-```
-upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n ${UPGRADE_ARGUMENTS} | sed ...)
-```
-
-An unquoted shell expansion allows an attacker-controlled `inputs.arguments` value containing shell metacharacters (`;`, `|`, `&`, `$(...)`, whitespace, glob chars) to be interpreted by the shell, enabling command injection. The fix is to double-quote the expansion: `"${UPGRADE_ARGUMENTS}"`.
+Fix: replace each `${{ github.action_path }}` in `run:` blocks with the environment variable `$GITHUB_ACTION_PATH`, which is already set by the runner and does not require template interpolation.
 
 Locations:
 
-- `upgrade.sh:7`
+- `action.yaml:94`
+- `action.yaml:107`
+- `action.yaml:116`
+- `action.yaml:124`
 
 ## Iteration Notes
 
@@ -52,22 +39,15 @@ Locations:
 
 **Notes:**
 
-Fixed all 5 script injection issues:
-1. action.yaml line 113: Replaced `${{ github.action_path }}/../setup/locate_trunk.sh` with `"$GITHUB_ACTION_PATH/../setup/locate_trunk.sh"`
-2. action.yaml line 133: Replaced `ln -s ${{ github.action_path }}/../setup-env` with `ln -s "$GITHUB_ACTION_PATH/../setup-env"`
-3. action.yaml line 146: Replaced `${{ github.action_path }}/upgrade.sh` with `"$GITHUB_ACTION_PATH/upgrade.sh"`
-4. action.yaml line 156: Replaced `${{ github.action_path }}/../cleanup.sh` with `"$GITHUB_ACTION_PATH/../cleanup.sh"`
-5. upgrade.sh line 7: Replaced unquoted `${UPGRADE_ARGUMENTS}` with a safe xargs-based tokenization into a bash array (`upgrade_args`), using the empty-array-safe expansion `"${upgrade_args[@]+"${upgrade_args[@]}"}"` to handle the case where no arguments are provided. The `if [ -n ... ]` guard prevents xargs from emitting an empty token when the variable is empty.
+Replaced all four occurrences of `${{ github.action_path }}` in `run:` blocks within hardened/action/action.yaml with `$GITHUB_ACTION_PATH`. The affected steps were: 'Locate trunk' (locate_trunk.sh), 'Detect setup strategy' (ln -s for setup-env), 'Run upgrade' (upgrade.sh), and 'Cleanup temporary files' (cleanup.sh). Using the runner-provided environment variable $GITHUB_ACTION_PATH instead of template interpolation eliminates the script-injection risk.
 
-### Iteration 1
+### Iteration 2
 
 **Fixes applied:** script-injection, github-env-injection
 
 **Notes:**
 
-Fixed all four findings in hardened/action/upgrade.sh:
-1. Quoted '${TRUNK_PATH}' in both command positions (lines 11 and 31) → '"${TRUNK_PATH}"' to prevent shell metacharacter injection.
-2. Quoted '${LOWERCASE_TITLE}' in the [[ ]] conditional (line 26) → '"${LOWERCASE_TITLE}"'.
-3. Replaced the fixed 'EOF' heredoc delimiter for PR_DESCRIPTION with a cryptographically random delimiter ('EOF_$(openssl rand -hex 16)') so attacker-controlled content in the description can never match the delimiter and inject additional GITHUB_ENV entries.
-4. Added newline sanitization for PR_TITLE: 'safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')' before writing to $GITHUB_ENV.
+Fixed upgrade.sh:
+1. script-injection (line 7): Replaced unquoted ${UPGRADE_ARGUMENTS} with xargs-based tokenization into a bash array (upgrade_args), guarded by [ -n ] check to prevent empty-input issues. Array expanded safely with the bash ${arr[@]+"${arr[@]}"} idiom to handle set -u with empty arrays.
+2. github-env-injection (lines 44, 51): Sanitized PR_TITLE via 'printf "%s" "${title_message}" | tr -d "\n\r"' before writing to GITHUB_ENV. Changed PR_DESCRIPTION heredoc delimiter from 'EOF' to 'TRUNK_UPGRADE_EOF' to prevent delimiter injection from trunk output content.
 

@@ -10,25 +10,27 @@
 
 **Harden Agent Version:** `2`
 
-Action **trunk-io--trunk-action--setup-env/v2.0.0** was hardened automatically. 1 finding(s) were identified and resolved across 1 iteration(s).
+Action **trunk-io--trunk-action--setup-env/v2.0.0** was hardened automatically. 1 finding(s) were identified and resolved across 3 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Rule (a) violation: Three `run:` blocks in action.yaml directly interpolate `${{ }}` expressions into shell commands, enabling script injection.
+Sub-rule (a): Three `run:` blocks in action.yaml directly interpolate `${{ ... }}` expressions inside shell command strings.
 
-1. Step 'Check for node installation' (line ~120): `if [ ${{ steps.setup_node.outcome }} == "success" ]` — the `steps.*` context is interpolated directly into the shell command string before the shell ever sees it.
+1. "Check for node installation" step: `if [ ${{ steps.setup_node.outcome }} == "success" ]` — `steps.*.outcome` flows through YAML template substitution before the shell sees it.
 
-2. Step 'Install packages' (line ~147): `run: ${{ env.INSTALL_CMD }}` — the entire shell command is an `env.*` expression interpolated directly. A calling workflow that sets `INSTALL_CMD` to a malicious value (e.g., containing shell metacharacters) would achieve arbitrary command execution.
+2. "Install packages" step: `run: ${{ env.INSTALL_CMD }}` — the entire shell command is a `${{ env.INSTALL_CMD }}` expression; `env.*` is a workflow-controllable context and must not be interpolated directly into a `run:` block.
 
-3. Step 'Check for package install' (line ~154): `if [ ${{ steps.install_packages.outcome }} == "success" ]` — same pattern as finding 1, `steps.*` context interpolated directly into the shell.
+3. "Check for package install" step: `if [ ${{ steps.install_packages.outcome }} == "success" ]` — same pattern as finding #1.
+
+All three should be moved to `env:` variables and referenced as quoted shell variables (e.g. `"$STEPS_OUTCOME"`, `"$INSTALL_CMD"`).
 
 Locations:
 
-- `action.yaml:120`
-- `action.yaml:147`
-- `action.yaml:154`
+- `action.yaml:113`
+- `action.yaml:131`
+- `action.yaml:137`
 
 ## Iteration Notes
 
@@ -38,8 +40,26 @@ Locations:
 
 **Notes:**
 
-Fixed three script injection vulnerabilities in action.yaml:
-1. 'Check for node installation' step (~line 120): Moved `${{ steps.setup_node.outcome }}` into an `env:` block as `SETUP_NODE_OUTCOME` and referenced it as `"$SETUP_NODE_OUTCOME"` in the shell script.
-2. 'Install packages' step (~line 147): Replaced `run: ${{ env.INSTALL_CMD }}` with `run: $INSTALL_CMD` — INSTALL_CMD is already available as a shell environment variable (written to $GITHUB_ENV in the first step), so no `${{ }}` expression interpolation is needed.
-3. 'Check for package install' step (~line 154): Moved `${{ steps.install_packages.outcome }}` into an `env:` block as `INSTALL_PACKAGES_OUTCOME` and referenced it as `"$INSTALL_PACKAGES_OUTCOME"` in the shell script.
+Fixed all three script injection findings in action.yaml:
+1. 'Check for node installation' step: Moved `${{ steps.setup_node.outcome }}` into an `env:` block as `SETUP_NODE_OUTCOME` and referenced it as `"$SETUP_NODE_OUTCOME"` in the shell script.
+2. 'Install packages' step: Moved `${{ env.INSTALL_CMD }}` into an `env:` block as `INSTALL_CMD` and changed `run:` to use `$INSTALL_CMD` (unquoted to preserve word splitting for multi-word commands like `npm ci`, `yarn install --immutable`, `pnpm install --frozen-lockfile`).
+3. 'Check for package install' step: Moved `${{ steps.install_packages.outcome }}` into an `env:` block as `INSTALL_PACKAGES_OUTCOME` and referenced it as `"$INSTALL_PACKAGES_OUTCOME"` in the shell script.
+
+### Iteration 2
+
+**Fixes applied:** script-injection
+
+**Notes:**
+
+Fixed two script injection vulnerabilities in hardened/action/action.yaml:
+1. Line 147: Replaced `run: $INSTALL_CMD` (where INSTALL_CMD came from the workflow-controllable `${{ env.INSTALL_CMD }}`) with a safe `case` statement that dispatches on `$PACKAGE_MANAGER` to run the appropriate hardcoded install command (npm ci / yarn install --immutable / pnpm install --frozen-lockfile). This eliminates the arbitrary command execution vector.
+2. Line 163: Quoted `${TRUNK_PATH}` as `"${TRUNK_PATH}"` to prevent word splitting and path injection when using it as a command prefix.
+
+### Iteration 3
+
+**Fixes applied:** github-env-injection
+
+**Notes:**
+
+Fixed the github-env-injection finding in the 'Determine pnpm version' step of hardened/action/action.yaml. The PNPM_VERSION variable (derived from the attacker-controlled package.json via jq) is now sanitized before being written to $GITHUB_ENV. Added `safe_pnpm_version=$(printf '%s' "${PNPM_VERSION}" | tr -d '\n\r')` and changed the echo to use the sanitized variable, preventing newline injection attacks that could add arbitrary key=value pairs to the runner's environment.
 

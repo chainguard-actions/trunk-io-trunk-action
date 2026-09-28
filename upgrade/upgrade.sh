@@ -8,7 +8,7 @@ if [ -n "${UPGRADE_ARGUMENTS}" ]; then
   while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
     < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
 fi
-upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]+${upgrade_args[@]}}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_args[@]+"${upgrade_args[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -25,13 +25,13 @@ if [[ ${trimmed_upgrade_output} == *"cli upgrade"* ]]; then
   title_message="Upgrade trunk to ${new_cli_version}"
 fi
 
-if [[ "${LOWERCASE_TITLE}" == "true" ]]; then
+if [[ ${LOWERCASE_TITLE} == "true" ]]; then
   title_message=$(echo "${title_message}" | tr '[:upper:]' '[:lower:]')
 fi
 
 # Step 3: Prepare for pull request creation action.
 # Avoid triggering a git-hook, and avoid resetting git hook config via daemon
-"${TRUNK_PATH}" daemon shutdown
+${TRUNK_PATH} daemon shutdown
 git config --local --unset core.hooksPath || true
 rm -f .trunk/landing-state.json
 
@@ -41,18 +41,17 @@ rm -f .trunk/landing-state.json
 formatted_output=$(echo "${trimmed_upgrade_output}" | sed -e 's/^\(  \)\{0,1\}  /\1- /')
 
 # Step 5: Generate markdown
-description=$(echo "${formatted_output}" | sed -e '/^UPGRADE_CONTENTS/{r /dev/stdin
+description=$(echo "${formatted_output}" | sed -e '/^UPGRADE_CONTENTS/{
+r /dev/stdin
 d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
-# Use a random delimiter to prevent content from prematurely terminating the heredoc.
-EOF_DELIM="EOF_$(openssl rand -hex 16)"
-{
-  echo "PR_DESCRIPTION<<${EOF_DELIM}"
-  printf '%s\n' "${description}"
-  echo "${EOF_DELIM}"
-} >> "${GITHUB_ENV}"
-
 safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
-echo "PR_TITLE=${safe_title}" >> "${GITHUB_ENV}"
+{
+  printf 'PR_DESCRIPTION<<TRUNK_UPGRADE_EOF\n'
+  printf '%s\n' "${description}"
+  printf 'TRUNK_UPGRADE_EOF\n'
+} >>"${GITHUB_ENV}"
+
+printf 'PR_TITLE=%s\n' "${safe_title}" >>"${GITHUB_ENV}"

@@ -1,40 +1,66 @@
 name: Test assignees and reviewers inputs
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up minimal trunk config
+      - name: Create minimal .trunk/trunk.yaml and fake trunk binary
         run: |
-          mkdir -p .trunk
-          cat > .trunk/trunk.yaml <<'EOF'
+          mkdir -p .trunk/bin
+          cat > .trunk/trunk.yaml << 'EOF'
           version: 0.1
           cli:
-            version: 1.22.2
+            version: 1.22.0
           EOF
+          # Create a fake trunk binary that handles upgrade and daemon commands
+          cat > .trunk/bin/trunk << 'EOF'
+          #!/bin/sh
+          case "$*" in
+            *upgrade*)
+              echo "Already up to date"
+              exit 0
+              ;;
+            *daemon*shutdown*)
+              exit 0
+              ;;
+            *)
+              exit 0
+              ;;
+          esac
+          EOF
+          chmod +x .trunk/bin/trunk
 
       - id: action
         uses: .
         continue-on-error: true
         with:
-          assignees: "octocat"
-          reviewers: "octocat"
+          trunk-path: .trunk/bin/trunk
+          assignees: octocat
+          reviewers: octocat
           base: main
-          branch-name: trunk-io/update-trunk-assignees-test
+          branch-name: trunk-io/update-trunk-test
           labels: trunk
           add-paths: .trunk
-          setup-deps: "false"
 
-      - name: Assert action ran with assignees and reviewers inputs
+      - name: Assert action ran with assignees and reviewers inputs (not skipped)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
-          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action completed with outcome '$OUTCOME' (expected on sentinel repo)"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          # The action may succeed (trunk already up to date, no PR needed)
+          # or fail (PR creation fails on sentinel repo). Either is acceptable.
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded with assignees and reviewers inputs"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected on sentinel repo)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

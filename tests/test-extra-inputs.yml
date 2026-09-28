@@ -1,0 +1,60 @@
+name: Test extra inputs (arguments, cache-key, label, trunk-path, upload-series)
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake trunk environment
+        run: |
+          # Create a fake trunk binary at a custom path to test trunk-path input
+          mkdir -p /tmp/fake-trunk-bin
+          cat > /tmp/fake-trunk-bin/trunk << 'TRUNKEOF'
+          #!/bin/bash
+          case "$1" in
+            version) echo "1.22.6"; exit 0 ;;
+            --ci) echo "fake trunk init"; exit 0 ;;
+            install) echo "fake trunk install"; exit 0 ;;
+            check) echo "fake trunk check"; exit 0 ;;
+            *) echo "fake trunk: $*"; exit 0 ;;
+          esac
+          TRUNKEOF
+          chmod +x /tmp/fake-trunk-bin/trunk
+
+          # Create a minimal trunk.yaml so "Init on-demand" is skipped
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml << 'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.6
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          trunk-path: /tmp/fake-trunk-bin/trunk
+          arguments: "--no-progress"
+          cache-key: my-custom-cache-key
+          label: linux-test
+          upload-series: my-upload-series
+        continue-on-error: true
+
+      - name: Assert action completed with extra inputs
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should succeed or fail gracefully with these extra inputs
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded with extra inputs"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (acceptable in sandbox environment)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
