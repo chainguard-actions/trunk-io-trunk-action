@@ -1,41 +1,55 @@
-name: Test basic usage (no tools input)
+name: Test basic trunk install (no tools specified)
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create minimal trunk config
+      - name: Set up trunk config in workspace
         run: |
           mkdir -p .trunk
           cat > .trunk/trunk.yaml <<'EOF'
           version: 0.1
           cli:
             version: 1.22.6
+          plugins:
+            sources:
+              - id: trunk
+                ref: v1.6.6
+                uri: https://github.com/trunk-io/plugins
+          lint:
+            enabled: []
           tools:
             enabled: []
+          actions:
+            disabled:
+              - trunk-announce
+              - trunk-check-pre-push
+              - trunk-fmt-pre-commit
+              - trunk-upgrade-available
           EOF
 
       - id: action
         uses: .
         continue-on-error: true
 
-      - name: Assert trunk was downloaded and added to PATH
+      - name: Assert trunk was installed and added to PATH
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
-          # The action should either succeed (trunk installed) or fail gracefully
-          # (e.g. trunk config issues). What we must NOT see is a missing trunk binary.
           if [ "$OUTCOME" = "success" ]; then
-            # trunk should be on PATH via .trunk/tools or the tmpdir
-            echo "PASS: action succeeded"
+            # Check that trunk binary is accessible
+            if ! command -v trunk &>/dev/null; then
+              echo "FAIL: trunk not found in PATH after action"
+              exit 1
+            fi
+            echo "PASS: trunk is available in PATH"
           elif [ "$OUTCOME" = "failure" ]; then
-            # Acceptable: trunk tools install may fail without a full config,
-            # but get_trunk.sh (downloading trunk) should have run.
-            echo "PASS: action ran and failed gracefully (expected without full trunk config)"
+            echo "PASS: action ran (may fail due to network/config constraints in test env)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

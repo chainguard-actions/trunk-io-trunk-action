@@ -10,36 +10,33 @@
 
 **Harden Agent Version:** `2`
 
-Action **trunk-io--trunk-action--setup/v2.0.0** was hardened automatically. 2 finding(s) were identified and resolved across 1 iteration(s).
+Action **trunk-io--trunk-action--setup/v2.0.0** was hardened automatically. 1 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### github-env-injection (severity: high)
 
-In locate_trunk.sh, the variable `trunk_path` is initialized from `${INPUT_TRUNK_PATH}` (line 12), which is set by action.yaml from the untrusted input `${{ inputs.trunk-path }}`. When the user supplies a non-empty value, it flows directly into `echo "TRUNK_PATH=${trunk_path}" >> "${GITHUB_ENV}"` on line 25 without the required sanitization step (`printf '%s' "$trunk_path" | tr -d '\n\r'`). An attacker can embed newline characters in the input to inject arbitrary key=value pairs into the runner's environment via GITHUB_ENV.
+In locate_trunk.sh, the variable `trunk_path` is initialized directly from `${INPUT_TRUNK_PATH}`, which is set by the calling workflow via `${{ inputs.trunk-path }}` (a user-controlled input). This value is written unsanitized to `$GITHUB_ENV` on line 24: `echo "TRUNK_PATH=${trunk_path}" >> "${GITHUB_ENV}"`. No `printf '%s' ... | tr -d '\n\r'` sanitization is applied before the write. An attacker can supply a newline-containing value for `inputs.trunk-path` to inject arbitrary environment variable assignments into subsequent steps (e.g., overwriting `PATH`, `LD_PRELOAD`, or other sensitive variables). The fix is to sanitize the value before writing: `safe=$(printf '%s' "$trunk_path" | tr -d '\n\r'); echo "TRUNK_PATH=${safe}" >> "${GITHUB_ENV}"`.
 
 Locations:
 
-- `locate_trunk.sh:25`
-- `action.yaml:20`
-
-### script-injection (severity: high)
-
-Sub-rule (b): In locate_trunk.sh line 27, `trunk_path` is expanded unquoted as a shell command: `${trunk_path} version`. The variable `trunk_path` is sourced from `${INPUT_TRUNK_PATH}` (an attacker-controlled value via `inputs.trunk-path`). Without double-quoting, shell metacharacters (`;`, `|`, `&`, `$(...)`, etc.) embedded in the input are interpreted by the shell, enabling command injection. The safe form would be `"${trunk_path}" version`.
-
-Locations:
-
-- `locate_trunk.sh:27`
+- `locate_trunk.sh:24`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** github-env-injection, script-injection
+**Fixes applied:** github-env-injection
 
 **Notes:**
 
-Fixed both findings in hardened/action/locate_trunk.sh:
-1. github-env-injection (line 25): Added sanitization step using `safe_trunk_path=$(printf '%s' "${trunk_path}" | tr -d '\n\r')` before writing to GITHUB_ENV. The sanitized value is now written instead of the raw user-supplied input.
-2. script-injection (line 27): Added double-quotes around `${trunk_path}` when used as a command (`"${trunk_path}" version`), preventing shell metacharacters in the user-supplied path from being interpreted by the shell.
+Fixed locate_trunk.sh line 24: sanitized trunk_path before writing to GITHUB_ENV by adding `safe_trunk_path=$(printf '%s' "${trunk_path}" | tr -d '\n\r')` and using `safe_trunk_path` in the echo statement. This prevents an attacker from injecting arbitrary environment variable assignments via a newline-containing `inputs.trunk-path` value.
+
+### Iteration 2
+
+**Fixes applied:** script-injection
+
+**Notes:**
+
+Fixed locate_trunk.sh line 28: changed `${trunk_path} version` to `"${trunk_path}" version`. The unquoted variable expansion allowed user-controlled input (from `inputs.trunk-path` via `INPUT_TRUNK_PATH`) containing shell metacharacters to cause unintended command execution. Quoting the variable ensures it is treated as a single argument (the path to the trunk binary) rather than being subject to word splitting and glob expansion.
 

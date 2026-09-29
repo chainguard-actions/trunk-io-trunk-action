@@ -10,27 +10,28 @@
 
 **Harden Agent Version:** `2`
 
-Action **trunk-io--trunk-action--setup-env/v2.0.0** was hardened automatically. 1 finding(s) were identified and resolved across 3 iteration(s).
+Action **trunk-io--trunk-action--setup-env/v2.0.0** was hardened automatically. 1 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Three `run:` blocks in action.yaml directly interpolate `${{ ... }}` expressions inside shell command strings.
+Sub-rule (a): Three `${{ }}` expressions are interpolated directly inside `run:` shell command strings, allowing template substitution before the shell ever sees the value:
 
-1. "Check for node installation" step: `if [ ${{ steps.setup_node.outcome }} == "success" ]` — `steps.*.outcome` flows through YAML template substitution before the shell sees it.
+1. Line 110: `if [ ${{ steps.setup_node.outcome }} == "success" ]` — `steps.*.outcome` is a workflow-controllable context value injected directly into a shell `if` test without quoting or env-var indirection.
 
-2. "Install packages" step: `run: ${{ env.INSTALL_CMD }}` — the entire shell command is a `${{ env.INSTALL_CMD }}` expression; `env.*` is a workflow-controllable context and must not be interpolated directly into a `run:` block.
+2. Line 137: `run: ${{ env.INSTALL_CMD }}` — the entire shell command is the `env.INSTALL_CMD` expression. Although `INSTALL_CMD` is set to a literal string earlier in the same composite action, the `env.*` context is workflow-controllable (a calling workflow can override it), so this is a direct expression injection into the run command.
 
-3. "Check for package install" step: `if [ ${{ steps.install_packages.outcome }} == "success" ]` — same pattern as finding #1.
+3. Line 144: `if [ ${{ steps.install_packages.outcome }} == "success" ]` — same pattern as finding #1 with `steps.install_packages.outcome`.
 
-All three should be moved to `env:` variables and referenced as quoted shell variables (e.g. `"$STEPS_OUTCOME"`, `"$INSTALL_CMD"`).
+Sub-rule (b): Line ~155: `${TRUNK_PATH} check disable eslint stylelint` — `TRUNK_PATH` is an inherited process env var (set by the calling workflow, never assigned in this run block) and is used unquoted as the command prefix, allowing shell metacharacter injection if the calling workflow sets it to a malicious value.
 
 Locations:
 
-- `action.yaml:113`
-- `action.yaml:131`
+- `action.yaml:110`
 - `action.yaml:137`
+- `action.yaml:144`
+- `action.yaml:155`
 
 ## Iteration Notes
 
@@ -40,26 +41,9 @@ Locations:
 
 **Notes:**
 
-Fixed all three script injection findings in action.yaml:
-1. 'Check for node installation' step: Moved `${{ steps.setup_node.outcome }}` into an `env:` block as `SETUP_NODE_OUTCOME` and referenced it as `"$SETUP_NODE_OUTCOME"` in the shell script.
-2. 'Install packages' step: Moved `${{ env.INSTALL_CMD }}` into an `env:` block as `INSTALL_CMD` and changed `run:` to use `$INSTALL_CMD` (unquoted to preserve word splitting for multi-word commands like `npm ci`, `yarn install --immutable`, `pnpm install --frozen-lockfile`).
-3. 'Check for package install' step: Moved `${{ steps.install_packages.outcome }}` into an `env:` block as `INSTALL_PACKAGES_OUTCOME` and referenced it as `"$INSTALL_PACKAGES_OUTCOME"` in the shell script.
-
-### Iteration 2
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed two script injection vulnerabilities in hardened/action/action.yaml:
-1. Line 147: Replaced `run: $INSTALL_CMD` (where INSTALL_CMD came from the workflow-controllable `${{ env.INSTALL_CMD }}`) with a safe `case` statement that dispatches on `$PACKAGE_MANAGER` to run the appropriate hardcoded install command (npm ci / yarn install --immutable / pnpm install --frozen-lockfile). This eliminates the arbitrary command execution vector.
-2. Line 163: Quoted `${TRUNK_PATH}` as `"${TRUNK_PATH}"` to prevent word splitting and path injection when using it as a command prefix.
-
-### Iteration 3
-
-**Fixes applied:** github-env-injection
-
-**Notes:**
-
-Fixed the github-env-injection finding in the 'Determine pnpm version' step of hardened/action/action.yaml. The PNPM_VERSION variable (derived from the attacker-controlled package.json via jq) is now sanitized before being written to $GITHUB_ENV. Added `safe_pnpm_version=$(printf '%s' "${PNPM_VERSION}" | tr -d '\n\r')` and changed the echo to use the sanitized variable, preventing newline injection attacks that could add arbitrary key=value pairs to the runner's environment.
+Fixed all four script-injection findings in action.yaml:
+1. Line 110: Moved `${{ steps.setup_node.outcome }}` into an `env:` block as `SETUP_NODE_OUTCOME` and referenced it as `"$SETUP_NODE_OUTCOME"` in the shell `if` test.
+2. Line 137: Replaced `run: ${{ env.INSTALL_CMD }}` with `run: $INSTALL_CMD` — INSTALL_CMD is already exported to GITHUB_ENV by the first step, so it's available as a process env var without template expression injection.
+3. Line 144: Moved `${{ steps.install_packages.outcome }}` into an `env:` block as `INSTALL_PACKAGES_OUTCOME` and referenced it as `"$INSTALL_PACKAGES_OUTCOME"` in the shell `if` test.
+4. Line ~155: Quoted `${TRUNK_PATH}` as `"$TRUNK_PATH"` to prevent shell metacharacter injection from a caller-controlled environment variable.
 

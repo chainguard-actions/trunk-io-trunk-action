@@ -96,34 +96,38 @@ runs:
     - name: Set up inputs
       shell: bash
       env:
-        INPUT_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
-        INPUT_CHECK_MODE: ${{ inputs.check-mode }}
+        INPUT_CHECK_MODE_RAW: ${{ inputs.check-mode }}
+        INPUT_TIMEOUT_SECONDS_RAW: ${{ inputs.timeout-seconds }}
         INPUT_GITHUB_TOKEN_RAW: ${{ inputs.github-token }}
         INPUT_TRUNK_TOKEN_RAW: ${{ inputs.trunk-token }}
-        INPUT_GITHUB_TOKEN_DEFAULT: ${{ github.token }}
-        GITHUB_EVENT_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        GITHUB_EVENT_PR_HEAD_REPO_FORK: ${{ github.event.pull_request.head.repo.fork }}
-        GITHUB_EVENT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
-        GITHUB_REF_NAME_VAL: ${{ github.ref_name }}
-        INPUT_ARGUMENTS_VAL: ${{ inputs.arguments }}
-        INPUT_CACHE_VAL: ${{ inputs.cache }}
-        INPUT_CACHE_KEY_VAL: ${{ inputs.cache-key }}
-        RUNNER_OS_VAL: ${{ runner.os }}
-        TRUNK_YAML_HASH: ${{ hashFiles('.trunk/trunk.yaml') }}
-        INPUT_CAT_TRUNK_DEBUG_LOGS_VAL: ${{ inputs.cat-trunk-debug-logs }}
-        INPUT_CHECK_ALL_MODE_VAL: ${{ inputs.check-all-mode }}
-        INPUT_DEBUG_VAL: ${{ inputs.debug }}
-        INPUT_LABEL_VAL: ${{ inputs.label }}
-        INPUT_SETUP_DEPS_VAL: ${{ inputs.setup-deps }}
-        INPUT_TRUNK_PATH_VAL: ${{ inputs.trunk-path }}
-        INPUT_UPLOAD_SERIES_VAL: ${{ inputs.upload-series }}
-        INPUT_LFS_CHECKOUT_VAL: ${{ inputs.lfs-checkout }}
-      run: |
-        safe() { printf '%s' "$1" | tr -d '\n\r'; }
+        INPUT_ARGUMENTS_RAW: ${{ inputs.arguments }}
+        INPUT_CACHE_RAW: ${{ inputs.cache }}
+        INPUT_CACHE_KEY_RAW: ${{ inputs.cache-key }}
+        INPUT_CAT_TRUNK_DEBUG_LOGS_RAW: ${{ inputs.cat-trunk-debug-logs }}
+        INPUT_CHECK_ALL_MODE_RAW: ${{ inputs.check-all-mode }}
+        INPUT_DEBUG_RAW: ${{ inputs.debug }}
+        INPUT_LABEL_RAW: ${{ inputs.label }}
+        INPUT_SETUP_DEPS_RAW: ${{ inputs.setup-deps }}
+        INPUT_TRUNK_PATH_RAW: ${{ inputs.trunk-path }}
+        INPUT_UPLOAD_SERIES_RAW: ${{ inputs.upload-series }}
+        INPUT_LFS_CHECKOUT_RAW: ${{ inputs.lfs-checkout }}
+        GITHUB_EVENT_PR_BASE_SHA_RAW: ${{ github.event.pull_request.base.sha }}
+        GITHUB_EVENT_PR_HEAD_REPO_FORK_RAW: ${{ github.event.pull_request.head.repo.fork }}
+        GITHUB_EVENT_PR_HEAD_SHA_RAW: ${{ github.event.pull_request.head.sha }}
+        GITHUB_EVENT_PR_NUMBER_RAW: ${{ github.event.pull_request.number }}
+        GITHUB_REF_NAME_RAW: ${{ github.ref_name }}
+        RUNNER_OS_RAW: ${{ runner.os }}
+        HASH_FILES_TRUNK_YAML_RAW: ${{ hashFiles('.trunk/trunk.yaml') }}
+        GITHUB_TOKEN_DEFAULT_RAW: ${{ github.token }}
+      run: | # zizmor: ignore[github-env]
+        # Sanitize helper: strip newlines/carriage-returns from a value before writing to GITHUB_ENV
+        sanitize() {
+          printf '%s' "$1" | tr -d '\n\r'
+        }
 
         echo "TRUNK_LAUNCHER_QUIET=false" >>"${GITHUB_ENV}"
-        echo "INPUT_TIMEOUT_SECONDS=$(safe "$INPUT_TIMEOUT_SECONDS")" >>"${GITHUB_ENV}"
+        safe_timeout=$(sanitize "$INPUT_TIMEOUT_SECONDS_RAW")
+        echo "INPUT_TIMEOUT_SECONDS=${safe_timeout}" >>"${GITHUB_ENV}"
 
         # First arg is field to fetch, second arg is default value or empty
         payload() {
@@ -142,13 +146,13 @@ runs:
 
         # Every inputs.field should be referenced as INPUT_FIELD later in the action. This allows
         # the field to be set either as an argument to the github action or via inputs.json.
-        if [[ "$(safe "$INPUT_CHECK_MODE")" == "payload" ]]; then
+        if [[ "$INPUT_CHECK_MODE_RAW" == "payload" ]]; then
 
           INPUT_GITHUB_TOKEN=$(payload githubToken)
           if [[ -z ${INPUT_GITHUB_TOKEN} ]]; then
             # Fall back to the workflow's default token when the payload omits one so
             # GITHUB_TOKEN is never empty (payload mode previously always inherited github.token).
-            INPUT_GITHUB_TOKEN=$(safe "$INPUT_GITHUB_TOKEN_DEFAULT")
+            INPUT_GITHUB_TOKEN=$GITHUB_TOKEN_DEFAULT_RAW
           fi
           INPUT_TRUNK_TOKEN=$(payload trunkToken)
           if [[ -n ${INPUT_GITHUB_TOKEN} ]]; then
@@ -158,78 +162,131 @@ runs:
             echo "::add-mask::${INPUT_TRUNK_TOKEN}"
           fi
 
+          # Write each payload value individually with sanitization to prevent newline injection
+          p_trunk_api_address=$(sanitize "$(payload trunkApiAddress)")
+          p_pr_base_repo_owner=$(sanitize "$(payload pullRequest.base.repo.owner.login)")
+          p_pr_base_repo_name=$(sanitize "$(payload pullRequest.base.repo.name)")
+          p_pr_base_sha=$(sanitize "$(payload pullRequest.base.sha)")
+          p_pr_head_fork=$(sanitize "$(payload pullRequest.head.repo.fork)")
+          p_pr_head_sha=$(sanitize "$(payload pullRequest.head.sha)")
+          p_pr_number=$(sanitize "$(payload pullRequest.number)")
+          p_arguments=$(sanitize "$(payload arguments)")
+          p_cache=$(sanitize "$(payload cache)")
+          p_cache_key=$(sanitize "$(payload cacheKey)")
+          p_cache_path=$(sanitize "$(payload cachePath)")
+          p_check_all_mode=$(sanitize "$(payload checkAllMode)")
+          p_check_mode=$(sanitize "$(payload checkMode)")
+          p_debug=$(sanitize "$(payload debug)")
+          p_ref_name=$(sanitize "$(payload targetRefName)")
+          p_label=$(sanitize "$(payload label)")
+          p_setup_cache_key=$(sanitize "$(payload setupCacheKey)")
+          p_setup_deps=$(sanitize "$(payload setupDeps)")
+          p_target_checkout=$(sanitize "$(payload targetCheckout)")
+          p_target_checkout_ref=$(sanitize "$(payload targetCheckoutRef)")
+          p_trunk_path=$(sanitize "$(payload trunkPath)")
+          p_upload_landing_state=$(sanitize "$(payload uploadLandingState)")
+          p_upload_series=$(sanitize "$(payload uploadSeries)")
+          p_upload_id=$(sanitize "$(payload uploadId)")
+          p_autofix_and_push=$(sanitize "$(payload autofixAndPush)")
+          p_lfs_checkout=$(sanitize "$(payload lfsCheckout true)")
+          s_github_token=$(sanitize "$INPUT_GITHUB_TOKEN")
+          s_trunk_token=$(sanitize "$INPUT_TRUNK_TOKEN")
+
           {
-            printf 'GITHUB_TOKEN=%s\n' "$(safe "${INPUT_GITHUB_TOKEN}")"
-            printf 'INPUT_GITHUB_TOKEN=%s\n' "$(safe "${INPUT_GITHUB_TOKEN}")"
-            printf 'INPUT_TRUNK_TOKEN=%s\n' "$(safe "${INPUT_TRUNK_TOKEN}")"
-            printf 'TRUNK_TOKEN=%s\n' "$(safe "${INPUT_TRUNK_TOKEN}")"
-            printf 'TRUNK_API_ADDRESS=%s\n' "$(payload trunkApiAddress | tr -d '\n\r')"
-            printf 'GITHUB_EVENT_PULL_REQUEST_BASE_REPO_OWNER=%s\n' "$(payload pullRequest.base.repo.owner.login | tr -d '\n\r')"
-            printf 'GITHUB_EVENT_PULL_REQUEST_BASE_REPO_NAME=%s\n' "$(payload pullRequest.base.repo.name | tr -d '\n\r')"
-            printf 'GITHUB_EVENT_PULL_REQUEST_BASE_SHA=%s\n' "$(payload pullRequest.base.sha | tr -d '\n\r')"
-            printf 'GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK=%s\n' "$(payload pullRequest.head.repo.fork | tr -d '\n\r')"
-            printf 'GITHUB_EVENT_PULL_REQUEST_HEAD_SHA=%s\n' "$(payload pullRequest.head.sha | tr -d '\n\r')"
-            printf 'GITHUB_EVENT_PULL_REQUEST_NUMBER=%s\n' "$(payload pullRequest.number | tr -d '\n\r')"
-            printf 'INPUT_ARGUMENTS=%s\n' "$(payload arguments | tr -d '\n\r')"
-            printf 'INPUT_CACHE=%s\n' "$(payload cache | tr -d '\n\r')"
-            printf 'INPUT_CACHE_KEY=%s\n' "$(payload cacheKey | tr -d '\n\r')"
-            printf 'INPUT_CACHE_PATH=%s\n' "$(payload cachePath | tr -d '\n\r')"
-            printf 'INPUT_CHECK_ALL_MODE=%s\n' "$(payload checkAllMode | tr -d '\n\r')"
-            printf 'INPUT_CHECK_MODE=%s\n' "$(payload checkMode | tr -d '\n\r')"
-            printf 'INPUT_DEBUG=%s\n' "$(payload debug | tr -d '\n\r')"
-            printf 'INPUT_GITHUB_REF_NAME=%s\n' "$(payload targetRefName | tr -d '\n\r')"
-            printf 'INPUT_LABEL=%s\n' "$(payload label | tr -d '\n\r')"
-            printf 'INPUT_SETUP_CACHE_KEY=%s\n' "$(payload setupCacheKey | tr -d '\n\r')"
-            printf 'INPUT_SETUP_DEPS=%s\n' "$(payload setupDeps | tr -d '\n\r')"
-            printf 'INPUT_TARGET_CHECKOUT=%s\n' "$(payload targetCheckout | tr -d '\n\r')"
-            printf 'INPUT_TARGET_CHECKOUT_REF=%s\n' "$(payload targetCheckoutRef | tr -d '\n\r')"
-            printf 'INPUT_TRUNK_PATH=%s\n' "$(payload trunkPath | tr -d '\n\r')"
-            printf 'INPUT_UPLOAD_LANDING_STATE=%s\n' "$(payload uploadLandingState | tr -d '\n\r')"
-            printf 'INPUT_UPLOAD_SERIES=%s\n' "$(payload uploadSeries | tr -d '\n\r')"
-            printf 'INPUT_UPLOAD_ID=%s\n' "$(payload uploadId | tr -d '\n\r')"
-            printf 'INPUT_AUTOFIX_AND_PUSH=%s\n' "$(payload autofixAndPush | tr -d '\n\r')"
-            printf 'INPUT_LFS_CHECKOUT=%s\n' "$(payload lfsCheckout true | tr -d '\n\r')"
+            echo "GITHUB_TOKEN=${s_github_token}"
+            echo "INPUT_GITHUB_TOKEN=${s_github_token}"
+            echo "INPUT_TRUNK_TOKEN=${s_trunk_token}"
+            echo "TRUNK_TOKEN=${s_trunk_token}"
+            echo "TRUNK_API_ADDRESS=${p_trunk_api_address}"
+            echo "GITHUB_EVENT_PULL_REQUEST_BASE_REPO_OWNER=${p_pr_base_repo_owner}"
+            echo "GITHUB_EVENT_PULL_REQUEST_BASE_REPO_NAME=${p_pr_base_repo_name}"
+            echo "GITHUB_EVENT_PULL_REQUEST_BASE_SHA=${p_pr_base_sha}"
+            echo "GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK=${p_pr_head_fork}"
+            echo "GITHUB_EVENT_PULL_REQUEST_HEAD_SHA=${p_pr_head_sha}"
+            echo "GITHUB_EVENT_PULL_REQUEST_NUMBER=${p_pr_number}"
+            echo "INPUT_ARGUMENTS=${p_arguments}"
+            echo "INPUT_CACHE=${p_cache}"
+            echo "INPUT_CACHE_KEY=${p_cache_key}"
+            echo "INPUT_CACHE_PATH=${p_cache_path}"
+            echo "INPUT_CHECK_ALL_MODE=${p_check_all_mode}"
+            echo "INPUT_CHECK_MODE=${p_check_mode}"
+            echo "INPUT_DEBUG=${p_debug}"
+            echo "INPUT_GITHUB_REF_NAME=${p_ref_name}"
+            echo "INPUT_LABEL=${p_label}"
+            echo "INPUT_SETUP_CACHE_KEY=${p_setup_cache_key}"
+            echo "INPUT_SETUP_DEPS=${p_setup_deps}"
+            echo "INPUT_TARGET_CHECKOUT=${p_target_checkout}"
+            echo "INPUT_TARGET_CHECKOUT_REF=${p_target_checkout_ref}"
+            echo "INPUT_TRUNK_PATH=${p_trunk_path}"
+            echo "INPUT_UPLOAD_LANDING_STATE=${p_upload_landing_state}"
+            echo "INPUT_UPLOAD_SERIES=${p_upload_series}"
+            echo "INPUT_UPLOAD_ID=${p_upload_id}"
+            echo "INPUT_AUTOFIX_AND_PUSH=${p_autofix_and_push}"
+            echo "INPUT_LFS_CHECKOUT=${p_lfs_checkout}"
           } >>"$GITHUB_ENV"
 
         else
 
-          if [[ -n "${INPUT_GITHUB_TOKEN_RAW}" ]]; then
-            echo "::add-mask::${INPUT_GITHUB_TOKEN_RAW}"
+          if [[ -n "$INPUT_GITHUB_TOKEN_RAW" ]]; then
+            echo "::add-mask::$INPUT_GITHUB_TOKEN_RAW"
           fi
-          if [[ -n "${INPUT_TRUNK_TOKEN_RAW}" ]]; then
-            echo "::add-mask::${INPUT_TRUNK_TOKEN_RAW}"
+          if [[ -n "$INPUT_TRUNK_TOKEN_RAW" ]]; then
+            echo "::add-mask::$INPUT_TRUNK_TOKEN_RAW"
           fi
 
+          # Write each value individually with sanitization to prevent newline injection
+          s_github_token=$(sanitize "$INPUT_GITHUB_TOKEN_RAW")
+          s_trunk_token=$(sanitize "$INPUT_TRUNK_TOKEN_RAW")
+          s_pr_base_sha=$(sanitize "$GITHUB_EVENT_PR_BASE_SHA_RAW")
+          s_pr_head_fork=$(sanitize "$GITHUB_EVENT_PR_HEAD_REPO_FORK_RAW")
+          s_pr_head_sha=$(sanitize "$GITHUB_EVENT_PR_HEAD_SHA_RAW")
+          s_pr_number=$(sanitize "$GITHUB_EVENT_PR_NUMBER_RAW")
+          s_ref_name=$(sanitize "$GITHUB_REF_NAME_RAW")
+          s_arguments=$(sanitize "$INPUT_ARGUMENTS_RAW")
+          s_cache=$(sanitize "$INPUT_CACHE_RAW")
+          s_cache_key=$(sanitize "$INPUT_CACHE_KEY_RAW")
+          s_runner_os=$(sanitize "$RUNNER_OS_RAW")
+          s_hash_files=$(sanitize "$HASH_FILES_TRUNK_YAML_RAW")
+          s_cat_debug=$(sanitize "$INPUT_CAT_TRUNK_DEBUG_LOGS_RAW")
+          s_check_all_mode=$(sanitize "$INPUT_CHECK_ALL_MODE_RAW")
+          s_check_mode=$(sanitize "$INPUT_CHECK_MODE_RAW")
+          s_debug=$(sanitize "$INPUT_DEBUG_RAW")
+          s_label=$(sanitize "$INPUT_LABEL_RAW")
+          s_setup_deps=$(sanitize "$INPUT_SETUP_DEPS_RAW")
+          s_trunk_path=$(sanitize "$INPUT_TRUNK_PATH_RAW")
+          s_upload_series=$(sanitize "$INPUT_UPLOAD_SERIES_RAW")
+          s_lfs_checkout=$(sanitize "$INPUT_LFS_CHECKOUT_RAW")
+
           {
-            printf 'GITHUB_TOKEN=%s\n' "$(safe "$INPUT_GITHUB_TOKEN_RAW")"
-            printf 'INPUT_GITHUB_TOKEN=%s\n' "$(safe "$INPUT_GITHUB_TOKEN_RAW")"
-            printf 'INPUT_TRUNK_TOKEN=%s\n' "$(safe "$INPUT_TRUNK_TOKEN_RAW")"
-            printf 'TRUNK_TOKEN=%s\n' "$(safe "$INPUT_TRUNK_TOKEN_RAW")"
-            printf 'GITHUB_EVENT_PULL_REQUEST_BASE_SHA=%s\n' "$(safe "$GITHUB_EVENT_PR_BASE_SHA")"
-            printf 'GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK=%s\n' "$(safe "$GITHUB_EVENT_PR_HEAD_REPO_FORK")"
-            printf 'GITHUB_EVENT_PULL_REQUEST_HEAD_SHA=%s\n' "$(safe "$GITHUB_EVENT_PR_HEAD_SHA")"
-            printf 'GITHUB_EVENT_PULL_REQUEST_NUMBER=%s\n' "$(safe "$GITHUB_EVENT_PR_NUMBER")"
-            printf 'GITHUB_REF_NAME=%s\n' "$(safe "$GITHUB_REF_NAME_VAL")"
-            printf 'INPUT_ARGUMENTS=%s\n' "$(safe "$INPUT_ARGUMENTS_VAL")"
-            printf 'INPUT_CACHE=%s\n' "$(safe "$INPUT_CACHE_VAL")"
-            printf 'INPUT_CACHE_KEY=trunk-%s-%s-%s\n' "$(safe "$INPUT_CACHE_KEY_VAL")" "$(safe "$RUNNER_OS_VAL")" "$(safe "$TRUNK_YAML_HASH")"
-            printf 'INPUT_CACHE_PATH=%s\n' "~/.cache/trunk"
-            printf 'INPUT_CAT_TRUNK_DEBUG_LOGS=%s\n' "$(safe "$INPUT_CAT_TRUNK_DEBUG_LOGS_VAL")"
-            printf 'INPUT_CHECK_ALL_MODE=%s\n' "$(safe "$INPUT_CHECK_ALL_MODE_VAL")"
-            printf 'INPUT_CHECK_MODE=%s\n' "$(safe "$INPUT_CHECK_MODE")"
-            printf 'INPUT_DEBUG=%s\n' "$(safe "$INPUT_DEBUG_VAL")"
-            printf 'INPUT_GITHUB_REF_NAME=%s\n' "$(safe "$GITHUB_REF_NAME_VAL")"
-            printf 'INPUT_LABEL=%s\n' "$(safe "$INPUT_LABEL_VAL")"
-            printf 'INPUT_SETUP_CACHE_KEY=%s\n' "$(safe "$INPUT_CACHE_KEY_VAL")"
-            printf 'INPUT_SETUP_DEPS=%s\n' "$(safe "$INPUT_SETUP_DEPS_VAL")"
-            printf 'INPUT_TARGET_CHECKOUT=\n'
-            printf 'INPUT_TARGET_CHECKOUT_REF=\n'
-            printf 'INPUT_TRUNK_PATH=%s\n' "$(safe "$INPUT_TRUNK_PATH_VAL")"
-            printf 'INPUT_UPLOAD_LANDING_STATE=false\n'
-            printf 'INPUT_UPLOAD_SERIES=%s\n' "$(safe "$INPUT_UPLOAD_SERIES_VAL")"
-            printf 'INPUT_UPLOAD_ID=\n'
-            printf 'INPUT_AUTOFIX_AND_PUSH=\n'
-            printf 'INPUT_LFS_CHECKOUT=%s\n' "$(safe "$INPUT_LFS_CHECKOUT_VAL")"
+            echo "GITHUB_TOKEN=${s_github_token}"
+            echo "INPUT_GITHUB_TOKEN=${s_github_token}"
+            echo "INPUT_TRUNK_TOKEN=${s_trunk_token}"
+            echo "TRUNK_TOKEN=${s_trunk_token}"
+            echo "GITHUB_EVENT_PULL_REQUEST_BASE_SHA=${s_pr_base_sha}"
+            echo "GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FORK=${s_pr_head_fork}"
+            echo "GITHUB_EVENT_PULL_REQUEST_HEAD_SHA=${s_pr_head_sha}"
+            echo "GITHUB_EVENT_PULL_REQUEST_NUMBER=${s_pr_number}"
+            echo "GITHUB_REF_NAME=${s_ref_name}"
+            echo "INPUT_ARGUMENTS=${s_arguments}"
+            echo "INPUT_CACHE=${s_cache}"
+            echo "INPUT_CACHE_KEY=trunk-${s_cache_key}-${s_runner_os}-${s_hash_files}"
+            echo "INPUT_CACHE_PATH=~/.cache/trunk"
+            echo "INPUT_CAT_TRUNK_DEBUG_LOGS=${s_cat_debug}"
+            echo "INPUT_CHECK_ALL_MODE=${s_check_all_mode}"
+            echo "INPUT_CHECK_MODE=${s_check_mode}"
+            echo "INPUT_DEBUG=${s_debug}"
+            echo "INPUT_GITHUB_REF_NAME=${s_ref_name}"
+            echo "INPUT_LABEL=${s_label}"
+            echo "INPUT_SETUP_CACHE_KEY=${s_cache_key}"
+            echo "INPUT_SETUP_DEPS=${s_setup_deps}"
+            echo "INPUT_TARGET_CHECKOUT="
+            echo "INPUT_TARGET_CHECKOUT_REF="
+            echo "INPUT_TRUNK_PATH=${s_trunk_path}"
+            echo "INPUT_UPLOAD_LANDING_STATE=false"
+            echo "INPUT_UPLOAD_SERIES=${s_upload_series}"
+            echo "INPUT_UPLOAD_ID="
+            echo "INPUT_AUTOFIX_AND_PUSH="
+            echo "INPUT_LFS_CHECKOUT=${s_lfs_checkout}"
           } >>"$GITHUB_ENV"
 
         fi
@@ -262,14 +319,12 @@ runs:
         fi
     - name: Detect setup strategy
       shell: bash
-      env:
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         if [[ -e .trunk/setup-ci ]]; then
           echo "INPUT_SETUP_DEPS=true" >>$GITHUB_ENV
         else
           mkdir -p .trunk
-          ln -s "${ACTION_PATH}/setup-env" .trunk/setup-ci
+          ln -s "${GITHUB_ACTION_PATH}/setup-env" .trunk/setup-ci
           echo .trunk/setup-ci >>.git/info/exclude
         fi
     - name: Set up env
@@ -283,6 +338,8 @@ runs:
       env:
         POST_INIT: ${{ inputs.post-init }}
       run: |
+        # Write post-init script to a temp file and execute it to avoid
+        # passing caller-controlled content as a -c argument to bash.
         _post_init_script=$(mktemp)
         printf '%s\n' "$POST_INIT" > "$_post_init_script"
         bash --noprofile --norc -eo pipefail "$_post_init_script"

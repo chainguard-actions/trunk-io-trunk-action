@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# shellcheck disable=SC2086
-
 set -euo pipefail
 
 # shellcheck source=git_github.sh
@@ -9,6 +7,14 @@ source "${BASH_SOURCE[0]%/*}/git_github.sh"
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
   set -x
+fi
+
+# Tokenize INPUT_ARGUMENTS (an args-style list) into an array using xargs so that
+# quoted sub-arguments are handled correctly without enabling shell injection.
+input_arguments=()
+if [ -n "${INPUT_ARGUMENTS}" ]; then
+  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
 fi
 
 head_sha=$(git rev-parse HEAD)
@@ -22,4 +28,4 @@ echo "Detected merge queue commit, using HEAD^1 (${upstream}) as upstream and HE
   --upstream "${upstream}" \
   --github-commit "${git_commit}" \
   --github-label "${INPUT_LABEL}" \
-  ${INPUT_ARGUMENTS}
+  "${input_arguments[@]}"

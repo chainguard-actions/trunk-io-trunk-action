@@ -8,7 +8,7 @@ if [ -n "${UPGRADE_ARGUMENTS}" ]; then
   while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
     < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
 fi
-upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_args[@]+"${upgrade_args[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]+"${upgrade_args[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -25,13 +25,13 @@ if [[ ${trimmed_upgrade_output} == *"cli upgrade"* ]]; then
   title_message="Upgrade trunk to ${new_cli_version}"
 fi
 
-if [[ ${LOWERCASE_TITLE} == "true" ]]; then
+if [[ "${LOWERCASE_TITLE}" == "true" ]]; then
   title_message=$(echo "${title_message}" | tr '[:upper:]' '[:lower:]')
 fi
 
 # Step 3: Prepare for pull request creation action.
 # Avoid triggering a git-hook, and avoid resetting git hook config via daemon
-${TRUNK_PATH} daemon shutdown
+"${TRUNK_PATH}" daemon shutdown
 git config --local --unset core.hooksPath || true
 rm -f .trunk/landing-state.json
 
@@ -48,10 +48,11 @@ d
 
 # Step 6: Write outputs
 safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
+safe_description=$(printf '%s' "${description}" | tr -d '\r')
 {
-  printf 'PR_DESCRIPTION<<TRUNK_UPGRADE_EOF\n'
-  printf '%s\n' "${description}"
-  printf 'TRUNK_UPGRADE_EOF\n'
+  echo "PR_DESCRIPTION<<EOF"
+  echo "${safe_description}"
+  echo "EOF"
 } >>"${GITHUB_ENV}"
 
-printf 'PR_TITLE=%s\n' "${safe_title}" >>"${GITHUB_ENV}"
+echo "PR_TITLE=${safe_title}" >>"${GITHUB_ENV}"

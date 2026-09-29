@@ -1,0 +1,70 @@
+name: Test dead symlink cleanup at .trunk/tools
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up trunk config and dead symlink
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.6
+          plugins:
+            sources:
+              - id: trunk
+                ref: v1.6.6
+                uri: https://github.com/trunk-io/plugins
+          lint:
+            enabled: []
+          tools:
+            enabled: []
+          actions:
+            disabled:
+              - trunk-announce
+              - trunk-check-pre-push
+              - trunk-fmt-pre-commit
+              - trunk-upgrade-available
+          EOF
+          # Create a dead symlink at .trunk/tools (points to a non-existent target)
+          ln -s /nonexistent/path .trunk/tools
+          echo "Dead symlink created:"
+          ls -la .trunk/tools || true
+
+      - name: Verify dead symlink exists before action
+        run: |
+          if [ -L ".trunk/tools" ] && [ ! -e ".trunk/tools" ]; then
+            echo "PASS: dead symlink confirmed at .trunk/tools"
+          else
+            echo "FAIL: expected a dead symlink at .trunk/tools"
+            exit 1
+          fi
+
+      - id: action
+        uses: .
+        continue-on-error: true
+
+      - name: Assert dead symlink was cleaned up
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # Regardless of whether trunk install succeeded, the dead symlink should be gone
+          if [ -L ".trunk/tools" ] && [ ! -e ".trunk/tools" ]; then
+            echo "FAIL: dead symlink at .trunk/tools was NOT cleaned up"
+            exit 1
+          fi
+          echo "PASS: dead symlink at .trunk/tools was cleaned up (or replaced)"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action completed successfully"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "INFO: action failed (possibly due to network/config constraints), but symlink cleanup was verified"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

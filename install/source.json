@@ -2,6 +2,7 @@
   "owner": "trunk-io",
   "repo": "trunk-action",
   "version": "v2.0.0",
+  "path": "install",
   "commit_sha": "e1234e67a86010d61ddac8d8ebf4b783e2ffd2fa",
   "url": "https://github.com/trunk-io/trunk-action",
   "policy_sha": "d636be7e43ef829af6e853da6b3c7566db9f72fe",

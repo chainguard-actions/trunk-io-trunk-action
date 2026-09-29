@@ -1,4 +1,4 @@
-name: Test explicit trunk-path input
+name: Test auto-detect trunk from tools/trunk
 on:
   workflow_dispatch:
 
@@ -8,31 +8,32 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create a mock trunk binary
+      - name: Create mock trunk at tools/trunk (no .trunk/bin/trunk)
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/mock-bin"
-          cat > "$GITHUB_WORKSPACE/mock-bin/trunk" << 'EOF'
+          mkdir -p "$GITHUB_WORKSPACE/tools"
+          cat > "$GITHUB_WORKSPACE/tools/trunk" << 'EOF'
           #!/bin/bash
-          echo "mock trunk version 1.0.0"
+          echo "mock trunk version 2.0.0 (from tools/)"
           exit 0
           EOF
-          chmod +x "$GITHUB_WORKSPACE/mock-bin/trunk"
-          echo "Mock trunk created at $GITHUB_WORKSPACE/mock-bin/trunk"
+          chmod +x "$GITHUB_WORKSPACE/tools/trunk"
+          # Ensure .trunk/bin/trunk does NOT exist so tools/trunk is picked
+          rm -f "$GITHUB_WORKSPACE/.trunk/bin/trunk"
+          echo "Mock trunk created at $GITHUB_WORKSPACE/tools/trunk"
 
       - id: action
         uses: .
-        with:
-          trunk-path: mock-bin/trunk
+        # No trunk-path — should auto-detect tools/trunk
 
-      - name: Assert TRUNK_PATH points to the explicit path
+      - name: Assert TRUNK_PATH points to tools/trunk
         run: |
           echo "TRUNK_PATH: $TRUNK_PATH"
           if [ -z "$TRUNK_PATH" ]; then
             echo "FAIL: TRUNK_PATH env var is not set"
             exit 1
           fi
-          if [ "$TRUNK_PATH" != "mock-bin/trunk" ]; then
-            echo "FAIL: expected TRUNK_PATH=mock-bin/trunk but got $TRUNK_PATH"
+          if [ "$TRUNK_PATH" != "tools/trunk" ]; then
+            echo "FAIL: expected TRUNK_PATH=tools/trunk but got $TRUNK_PATH"
             exit 1
           fi
           echo "PASS: TRUNK_PATH=$TRUNK_PATH"

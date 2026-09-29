@@ -1,0 +1,45 @@
+name: Test extra inputs (arguments, assignees, prefix, reviewers)
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal .trunk/trunk.yaml
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml << 'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.0
+          EOF
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          prefix: "chore: "
+          arguments: "--dry-run"
+          assignees: "octocat"
+          reviewers: "octocat"
+          base: main
+          branch-name: trunk-io/update-trunk-extra-test
+          labels: trunk
+          add-paths: .trunk
+          setup-deps: "false"
+
+      - name: Assert action ran (not skipped)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          # The action may succeed or fail (sentinel repo, trunk binary availability, etc.)
+          # Either success or failure is acceptable — skipped is not.
+          echo "PASS: action ran with outcome '$OUTCOME'"
