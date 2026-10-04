@@ -97,13 +97,13 @@ runs:
         echo "PNPM_VERSION=$safe" >>"$GITHUB_ENV"
     - name: Install pnpm
       if: env.PACKAGE_MANAGER == 'pnpm'
-      uses: pnpm/action-setup@eae0cfeb286e66ffb5155f1a79b90583a127a68b # v2
+      uses: chainguard-actions/pnpm-action-setup@b7bfbdf78cfad265ab0b2d5193480c776161efcd # v2
       with:
         version: ${{ env.PNPM_VERSION }}
     - name: Install Node dependencies
       id: setup_node
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE
-      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      uses: chainguard-actions/actions-setup-node@031fc9bd73e651da81e6a7294b2af29e64d5f39c # v4
       with:
         node-version-file: ${{ env.NODE_VERSION_FILE }}
       continue-on-error: true
@@ -124,7 +124,7 @@ runs:
         fi
     - name: Install backup node version
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE && env.INSTALL_LATEST_NODE == 'true'
-      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      uses: chainguard-actions/actions-setup-node@031fc9bd73e651da81e6a7294b2af29e64d5f39c # v4
       with:
         node-version: latest
     - name: Cache node_modules

@@ -271,7 +271,7 @@ runs:
         fi
     - name: Checkout
       if: env.INPUT_TARGET_CHECKOUT
-      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      uses: chainguard-actions/actions-checkout@31bbccf724702f8a0dc7a3ed7db8fcca2066babc # v4
       with:
         lfs: ${{ env.INPUT_LFS_CHECKOUT && inputs.lfs-checkout }}
         submodules: recursive
@@ -304,7 +304,7 @@ runs:
           echo .trunk/setup-ci >> .git/info/exclude
         fi
     - name: Find Comment
-      uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
+      uses: chainguard-actions/peter-evans-find-comment@c4fb10cb76510001db578dd7b1026d2b47a8bd46 # v3
       if: |
         inputs.check-mode == 'payload' && env.TRUNK_CHECK_MODE == 'pull_request' &&
         env.INPUT_GITHUB_TOKEN
@@ -316,7 +316,7 @@ runs:
         token: ${{ env.INPUT_GITHUB_TOKEN }}
         body-regex: ^.*https://docs.trunk.io/code-quality/setup-and-installation/prevent-new-issues/migration-guide.*$
     - name: Post comment
-      uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4
+      uses: chainguard-actions/peter-evans-create-or-update-comment@0e4a2c30c463a6d79cddb8d415537d820422737d # v4
       if: |
         inputs.check-mode == 'payload' && env.TRUNK_CHECK_MODE == 'pull_request' &&
         env.INPUT_GITHUB_TOKEN
@@ -348,7 +348,7 @@ runs:
         rm -f "$_post_init_script"
     - name: Cache Linters/Formatters
       if: env.TRUNK_CHECK_MODE != 'none' && env.INPUT_CACHE == 'true'
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: chainguard-actions/actions-cache@1a492a110f951652a0d2d3327bc20ee36867788e # v4
       with:
         path: ${{ env.INPUT_CACHE_PATH }}
         key: ${{ env.INPUT_CACHE_KEY }}
@@ -424,14 +424,14 @@ runs:
         ${GITHUB_ACTION_PATH}/populate_cache_only.sh
     - name: Upload annotations artifact
       if: always() && env.TRUNK_UPLOAD_ANNOTATIONS == 'true'
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: chainguard-actions/actions-upload-artifact@61ae9717c37cd5ac5fcaa5599c0dab961d043ecc # v4
       with:
         name: trunk-annotations
         overwrite: true
         path: ${{ env.TRUNK_TMPDIR }}/annotations.bin
     - name: Download annotations artifact
       if: inputs.post-annotations == 'true'
-      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+      uses: chainguard-actions/actions-github-script@2b8beddf2d0d1ba8e353f16cae078671866153e7 # v7
       env:
         WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
         TRUNK_TMPDIR_VAL: ${{ env.TRUNK_TMPDIR }}
@@ -473,7 +473,7 @@ runs:
     - name: Upload landing state
       if: env.INPUT_UPLOAD_LANDING_STATE == 'true'
       continue-on-error: true
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      uses: chainguard-actions/actions-upload-artifact@61ae9717c37cd5ac5fcaa5599c0dab961d043ecc # v4
       with:
         name: landing-state.json
         path: .trunk/landing-state.json

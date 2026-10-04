@@ -130,7 +130,7 @@ runs:
         "$GITHUB_ACTION_PATH/../cleanup.sh"
     - name: Create Pull Request
       id: cpr
-      uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
+      uses: chainguard-actions/peter-evans-create-pull-request@f226846016dba1433e2914231c1de63ed43c7e14 # v6
       with:
         title: ${{ inputs.prefix }}${{ env.PR_TITLE }}
         body: ${{ env.PR_DESCRIPTION }}
