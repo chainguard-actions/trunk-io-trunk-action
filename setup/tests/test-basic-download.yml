@@ -1,0 +1,47 @@
+name: Test basic usage - download trunk automatically
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        name: Run trunk action (no trunk-path, auto-download)
+        uses: .
+
+      - name: Assert TRUNK_PATH is set
+        run: |
+          echo "TRUNK_PATH: $TRUNK_PATH"
+          if [ -z "$TRUNK_PATH" ]; then
+            echo "FAIL: TRUNK_PATH is not set"
+            exit 1
+          fi
+          echo "PASS: TRUNK_PATH=$TRUNK_PATH"
+
+      - name: Assert TRUNK_TMPDIR is set
+        run: |
+          echo "TRUNK_TMPDIR: $TRUNK_TMPDIR"
+          if [ -z "$TRUNK_TMPDIR" ]; then
+            echo "FAIL: TRUNK_TMPDIR is not set"
+            exit 1
+          fi
+          if [ ! -d "$TRUNK_TMPDIR" ]; then
+            echo "FAIL: TRUNK_TMPDIR directory does not exist: $TRUNK_TMPDIR"
+            exit 1
+          fi
+          echo "PASS: TRUNK_TMPDIR=$TRUNK_TMPDIR"
+
+      - name: Assert trunk binary exists and is executable
+        run: |
+          echo "TRUNK_PATH: $TRUNK_PATH"
+          if [ ! -f "$TRUNK_PATH" ]; then
+            echo "FAIL: trunk binary not found at $TRUNK_PATH"
+            exit 1
+          fi
+          if [ ! -x "$TRUNK_PATH" ]; then
+            echo "FAIL: trunk binary is not executable at $TRUNK_PATH"
+            exit 1
+          fi
+          echo "PASS: trunk binary found and executable at $TRUNK_PATH"

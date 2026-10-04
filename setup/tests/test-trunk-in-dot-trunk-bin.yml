@@ -1,0 +1,49 @@
+name: Test trunk auto-discovery in .trunk/bin/trunk
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create mock trunk in .trunk/bin/
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.trunk/bin"
+          cat > "$GITHUB_WORKSPACE/.trunk/bin/trunk" << 'EOF'
+          #!/bin/bash
+          echo "mock trunk version 2.0.0 (from .trunk/bin)"
+          exit 0
+          EOF
+          chmod +x "$GITHUB_WORKSPACE/.trunk/bin/trunk"
+          echo "Mock trunk created at $GITHUB_WORKSPACE/.trunk/bin/trunk"
+
+      - id: action
+        name: Run trunk action (no trunk-path, should find .trunk/bin/trunk)
+        uses: .
+
+      - name: Assert TRUNK_PATH points to .trunk/bin/trunk
+        run: |
+          echo "TRUNK_PATH: $TRUNK_PATH"
+          if [ -z "$TRUNK_PATH" ]; then
+            echo "FAIL: TRUNK_PATH is not set"
+            exit 1
+          fi
+          if [ "$TRUNK_PATH" != ".trunk/bin/trunk" ]; then
+            echo "FAIL: expected TRUNK_PATH=.trunk/bin/trunk but got $TRUNK_PATH"
+            exit 1
+          fi
+          echo "PASS: TRUNK_PATH=$TRUNK_PATH"
+
+      - name: Assert TRUNK_TMPDIR is set and is a directory
+        run: |
+          echo "TRUNK_TMPDIR: $TRUNK_TMPDIR"
+          if [ -z "$TRUNK_TMPDIR" ]; then
+            echo "FAIL: TRUNK_TMPDIR is not set"
+            exit 1
+          fi
+          if [ ! -d "$TRUNK_TMPDIR" ]; then
+            echo "FAIL: TRUNK_TMPDIR directory does not exist: $TRUNK_TMPDIR"
+            exit 1
+          fi
+          echo "PASS: TRUNK_TMPDIR=$TRUNK_TMPDIR"

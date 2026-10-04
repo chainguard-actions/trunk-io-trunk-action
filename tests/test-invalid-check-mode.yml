@@ -1,0 +1,74 @@
+name: Test invalid check-mode input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify invalid check-mode is rejected by determine_check_mode.sh logic
+        run: |
+          # Simulate the validation logic from determine_check_mode.sh
+          check_mode="invalid_mode"
+          valid_modes="all none populate_cache_only pull_request push trunk_merge"
+          
+          is_valid=false
+          for mode in $valid_modes; do
+            if [ "$check_mode" = "$mode" ]; then
+              is_valid=true
+              break
+            fi
+          done
+
+          if [ "$is_valid" = "false" ]; then
+            echo "PASS: invalid check-mode '$check_mode' correctly identified as invalid"
+          else
+            echo "FAIL: invalid check-mode '$check_mode' was incorrectly accepted"
+            exit 1
+          fi
+
+      - name: Set up fake trunk binary and config
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk <<'SCRIPT'
+          #!/bin/sh
+          case "$1" in
+            version)
+              echo "1.22.2"
+              ;;
+            *)
+              echo "fake-trunk: $*"
+              ;;
+          esac
+          exit 0
+          SCRIPT
+          chmod +x .trunk/bin/trunk
+
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          check-mode: invalid_mode
+        continue-on-error: true
+
+      - name: Assert action failed with invalid check-mode
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should fail because invalid_mode is not a valid check mode
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed with invalid check-mode"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: action should have failed with invalid check-mode but succeeded"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

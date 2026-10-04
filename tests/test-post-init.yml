@@ -1,0 +1,47 @@
+name: Test post-init steps
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to avoid auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - name: Create post-init marker file location
+        run: mkdir -p /tmp/trunk-test
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          post-init: "echo 'post-init ran' > /tmp/trunk-test/post-init-marker.txt"
+
+      - name: Assert action succeeded and post-init ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: expected action to succeed with post-init in none mode, got '$OUTCOME'"
+            exit 1
+          fi
+          if [ ! -f /tmp/trunk-test/post-init-marker.txt ]; then
+            echo "FAIL: post-init marker file not found — post-init steps did not run"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/trunk-test/post-init-marker.txt)
+          echo "post-init marker content: $CONTENT"
+          if [ "$CONTENT" != "post-init ran" ]; then
+            echo "FAIL: unexpected post-init marker content: '$CONTENT'"
+            exit 1
+          fi
+          echo "PASS: post-init steps ran correctly"

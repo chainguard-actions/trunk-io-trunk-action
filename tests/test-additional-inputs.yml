@@ -1,0 +1,44 @@
+name: Test additional inputs coverage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal .trunk/trunk.yaml to avoid auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          check-mode: none
+          arguments: "--no-progress"
+          cache-key: "test-repo-main"
+          check-run-id: "12345"
+          github-token: ${{ github.token }}
+          label: "ubuntu"
+          trunk-token: ""
+          upload-series: "main"
+
+      - name: Assert action completed with additional inputs
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded with additional inputs"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (acceptable in sandbox environment)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

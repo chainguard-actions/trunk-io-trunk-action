@@ -1,0 +1,105 @@
+name: Test trunk location logic
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Test trunk found in .trunk/bin/trunk
+        run: |
+          # Create a fake trunk binary in .trunk/bin/
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk << 'SCRIPT'
+          #!/bin/sh
+          echo "fake-trunk version 1.0.0"
+          SCRIPT
+          chmod +x .trunk/bin/trunk
+
+          # Simulate locate_trunk.sh logic
+          trunk_path=""
+          if [[ -f .trunk/bin/trunk && -x .trunk/bin/trunk ]]; then
+            trunk_path=.trunk/bin/trunk
+          elif [[ -f tools/trunk && -x tools/trunk ]]; then
+            trunk_path=tools/trunk
+          elif [[ -f trunk && -x trunk ]]; then
+            trunk_path=./trunk
+          fi
+
+          echo "Located trunk at: $trunk_path"
+          if [ "$trunk_path" != ".trunk/bin/trunk" ]; then
+            echo "FAIL: expected trunk at .trunk/bin/trunk, got '$trunk_path'"
+            exit 1
+          fi
+          echo "PASS: trunk correctly located at .trunk/bin/trunk"
+
+          # Cleanup
+          rm -rf .trunk/bin
+
+      - name: Test trunk found in tools/trunk
+        run: |
+          # Create a fake trunk binary in tools/
+          mkdir -p tools
+          cat > tools/trunk << 'SCRIPT'
+          #!/bin/sh
+          echo "fake-trunk version 1.0.0"
+          SCRIPT
+          chmod +x tools/trunk
+
+          # Simulate locate_trunk.sh logic (no .trunk/bin/trunk)
+          trunk_path=""
+          if [[ -f .trunk/bin/trunk && -x .trunk/bin/trunk ]]; then
+            trunk_path=.trunk/bin/trunk
+          elif [[ -f tools/trunk && -x tools/trunk ]]; then
+            trunk_path=tools/trunk
+          elif [[ -f trunk && -x trunk ]]; then
+            trunk_path=./trunk
+          fi
+
+          echo "Located trunk at: $trunk_path"
+          if [ "$trunk_path" != "tools/trunk" ]; then
+            echo "FAIL: expected trunk at tools/trunk, got '$trunk_path'"
+            exit 1
+          fi
+          echo "PASS: trunk correctly located at tools/trunk"
+
+          # Cleanup
+          rm -rf tools
+
+      - name: Test trunk found in repo root
+        run: |
+          # Create a fake trunk binary in repo root
+          cat > trunk << 'SCRIPT'
+          #!/bin/sh
+          echo "fake-trunk version 1.0.0"
+          SCRIPT
+          chmod +x trunk
+
+          # Simulate locate_trunk.sh logic (no .trunk/bin/trunk or tools/trunk)
+          trunk_path=""
+          if [[ -f .trunk/bin/trunk && -x .trunk/bin/trunk ]]; then
+            trunk_path=.trunk/bin/trunk
+          elif [[ -f tools/trunk && -x tools/trunk ]]; then
+            trunk_path=tools/trunk
+          elif [[ -f trunk && -x trunk ]]; then
+            trunk_path=./trunk
+          fi
+
+          echo "Located trunk at: $trunk_path"
+          if [ "$trunk_path" != "./trunk" ]; then
+            echo "FAIL: expected trunk at ./trunk, got '$trunk_path'"
+            exit 1
+          fi
+          echo "PASS: trunk correctly located at ./trunk"
+
+          # Cleanup
+          rm -f trunk
+
+      # Call the action with check-mode=none to satisfy the uses: . requirement
+      # and verify the action can locate/download trunk on demand
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"

@@ -1,0 +1,47 @@
+name: Test yarn package manager detection
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up yarn fixture files in workspace root
+        run: |
+          # Remove any conflicting lock files
+          rm -f "$GITHUB_WORKSPACE/package-lock.json"
+          rm -f "$GITHUB_WORKSPACE/pnpm-lock.yaml"
+          # Copy yarn fixture files
+          cp "$GITHUB_WORKSPACE/tests/fixtures/yarn/package.json" "$GITHUB_WORKSPACE/package.json"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/yarn/yarn.lock" "$GITHUB_WORKSPACE/yarn.lock"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/yarn/.nvmrc" "$GITHUB_WORKSPACE/.nvmrc"
+          echo "Copied yarn fixture files:"
+          ls -la "$GITHUB_WORKSPACE/package.json" "$GITHUB_WORKSPACE/yarn.lock" "$GITHUB_WORKSPACE/.nvmrc"
+
+      - id: action
+        uses: .
+        with:
+          cache-key: ""
+        continue-on-error: true
+
+      - name: Assert yarn was detected
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "PACKAGE_MANAGER env: '${PACKAGE_MANAGER}'"
+          echo "INSTALL_CMD env: '${INSTALL_CMD}'"
+          # PACKAGE_MANAGER is set via GITHUB_ENV in the detection step of the composite action
+          # It is available here even if later steps in the composite failed
+          if [ "$PACKAGE_MANAGER" = "yarn" ]; then
+            echo "PASS: yarn detected correctly"
+          else
+            echo "FAIL: expected PACKAGE_MANAGER=yarn but got '${PACKAGE_MANAGER}'"
+            exit 1
+          fi
+
+      - name: Cleanup workspace files
+        if: always()
+        run: |
+          rm -f "$GITHUB_WORKSPACE/package.json" "$GITHUB_WORKSPACE/yarn.lock" "$GITHUB_WORKSPACE/.nvmrc"

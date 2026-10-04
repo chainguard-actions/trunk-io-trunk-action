@@ -1,18 +1,31 @@
 name: Setup environment
 author: trunk.io
 description: Automatic setup for trunk check dependencies (e.g. Node)
-
 inputs:
   cache-key:
-    description:
-      Cache key for setup (either passed into .trunk/setup-ci/, or used to cache node_modules in
-      this action).
+    description: Cache key for setup (either passed into .trunk/setup-ci/, or used to cache node_modules in this action).
     required: false
     default: ""
-
 runs:
   using: composite
   steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Detect npm/yarn/pnpm & custom setup
       shell: bash
       run: |
@@ -70,7 +83,6 @@ runs:
         else
           echo "Could not find existing node install, skipping node package installation"
         fi
-
     - name: Determine pnpm version
       if: env.PACKAGE_MANAGER == 'pnpm'
       shell: bash
@@ -81,14 +93,13 @@ runs:
         if [ -z "${PNPM_VERSION}" ]; then
           PNPM_VERSION=latest
         fi
-        echo "PNPM_VERSION=${PNPM_VERSION}" >>$GITHUB_ENV
-
+        safe=$(printf '%s' "$PNPM_VERSION" | tr -d '\n\r')
+        echo "PNPM_VERSION=$safe" >>"$GITHUB_ENV"
     - name: Install pnpm
       if: env.PACKAGE_MANAGER == 'pnpm'
       uses: pnpm/action-setup@eae0cfeb286e66ffb5155f1a79b90583a127a68b # v2
       with:
         version: ${{ env.PNPM_VERSION }}
-
     - name: Install Node dependencies
       id: setup_node
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE
@@ -96,14 +107,13 @@ runs:
       with:
         node-version-file: ${{ env.NODE_VERSION_FILE }}
       continue-on-error: true
-
     - name: Check for node installation
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE
       shell: bash
       env:
-        _SETUP_NODE_OUTCOME: ${{ steps.setup_node.outcome }}
+        SETUP_NODE_OUTCOME: ${{ steps.setup_node.outcome }}
       run: |
-        if [ "$_SETUP_NODE_OUTCOME" == "success" ]; then
+        if [ "$SETUP_NODE_OUTCOME" == "success" ]; then
           exit 0
         fi
         echo "::warning::Failed to install specified node version."
@@ -112,39 +122,33 @@ runs:
           echo "::warning::No existing node install detected - installing latest node instead."
           echo "INSTALL_LATEST_NODE=true" >>$GITHUB_ENV
         fi
-
     - name: Install backup node version
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE && env.INSTALL_LATEST_NODE == 'true'
       uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
       with:
         node-version: latest
-
     - name: Cache node_modules
       if: inputs.cache-key && env.PACKAGE_MANAGER
       uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3
       with:
         path: node_modules/
-        key:
-          ${{ env.PACKAGE_MANAGER }}-${{ runner.os }}-${{ inputs.cache-key }}-${{
-          hashFiles(env.HASH_GLOB) }}
-
+        key: ${{ env.PACKAGE_MANAGER }}-${{ runner.os }}-${{ inputs.cache-key }}-${{ hashFiles(env.HASH_GLOB) }}
     - name: Install ${{ env.PACKAGE_MANAGER }} packages
       id: install_packages
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash
       env:
-        _INSTALL_CMD: ${{ env.INSTALL_CMD }}
+        INSTALL_CMD: ${{ env.INSTALL_CMD }}
       run: |
-        bash -c "$_INSTALL_CMD"
+        eval "$INSTALL_CMD"
       continue-on-error: true
-
     - name: Check for package install
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash
       env:
-        _INSTALL_PACKAGES_OUTCOME: ${{ steps.install_packages.outcome }}
+        INSTALL_PACKAGES_OUTCOME: ${{ steps.install_packages.outcome }}
       run: |
-        if [ "$_INSTALL_PACKAGES_OUTCOME" == "success" ]; then
+        if [ "$INSTALL_PACKAGES_OUTCOME" == "success" ]; then
           exit 0
         fi
         echo "FAILED_NODE_PACKAGE_INSTALL=true" >>$GITHUB_ENV

@@ -1,0 +1,46 @@
+name: Test npm setup with cache-key input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up npm fixture files in workspace root
+        run: |
+          # Remove any conflicting lock files
+          rm -f "$GITHUB_WORKSPACE/yarn.lock"
+          rm -f "$GITHUB_WORKSPACE/pnpm-lock.yaml"
+          # Copy npm fixture files
+          cp "$GITHUB_WORKSPACE/tests/fixtures/npm/package.json" "$GITHUB_WORKSPACE/package.json"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/npm/package-lock.json" "$GITHUB_WORKSPACE/package-lock.json"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/npm/.nvmrc" "$GITHUB_WORKSPACE/.nvmrc"
+          echo "Copied npm fixture files:"
+          ls -la "$GITHUB_WORKSPACE/package.json" "$GITHUB_WORKSPACE/package-lock.json" "$GITHUB_WORKSPACE/.nvmrc"
+
+      - id: action
+        uses: .
+        with:
+          cache-key: "test-cache-key-12345"
+        continue-on-error: true
+
+      - name: Assert npm was detected with cache-key
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "PACKAGE_MANAGER env: '${PACKAGE_MANAGER}'"
+          echo "HASH_GLOB env: '${HASH_GLOB}'"
+          # PACKAGE_MANAGER is set via GITHUB_ENV in the detection step of the composite action
+          if [ "$PACKAGE_MANAGER" = "npm" ]; then
+            echo "PASS: npm detected correctly with cache-key"
+          else
+            echo "FAIL: expected PACKAGE_MANAGER=npm but got '${PACKAGE_MANAGER}'"
+            exit 1
+          fi
+
+      - name: Cleanup workspace files
+        if: always()
+        run: |
+          rm -f "$GITHUB_WORKSPACE/package.json" "$GITHUB_WORKSPACE/package-lock.json" "$GITHUB_WORKSPACE/.nvmrc"

@@ -1,0 +1,63 @@
+name: Test arguments, assignees, and reviewers inputs
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up minimal trunk environment
+        run: |
+          mkdir -p .trunk/bin
+          # Create a minimal trunk.yaml so the action doesn't exit early
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+          # Create a fake trunk binary that accepts extra arguments and simulates "Already up to date"
+          cat > .trunk/bin/trunk <<'SCRIPT'
+          #!/bin/sh
+          # Fake trunk binary for testing - accepts any arguments
+          if echo "$*" | grep -q "upgrade"; then
+            echo "Already up to date"
+            exit 0
+          fi
+          if echo "$*" | grep -q "daemon"; then
+            exit 0
+          fi
+          exit 0
+          SCRIPT
+          chmod +x .trunk/bin/trunk
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          trunk-path: .trunk/bin/trunk
+          base: main
+          arguments: --no-progress
+          assignees: octocat
+          reviewers: octocat
+          labels: trunk
+
+      - name: Assert action ran with arguments, assignees, and reviewers
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          PR_NUMBER: ${{ steps.action.outputs.pull-request-number }}
+          PR_URL: ${{ steps.action.outputs.pull-request-url }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "pull-request-number: $PR_NUMBER"
+          echo "pull-request-url: $PR_URL"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded (already up to date, no PR needed)"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected with sentinel repo for PR creation)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

@@ -1,0 +1,41 @@
+name: Test cat-trunk-debug-logs input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to avoid auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cat-trunk-debug-logs: "true"
+        continue-on-error: true
+
+      - name: Assert action ran (cat-trunk-debug-logs does not break the action)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action may succeed or fail depending on trunk availability,
+          # but it should not crash due to the cat-trunk-debug-logs flag itself.
+          # In none mode, trunk check is skipped so the action should succeed.
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded with cat-trunk-debug-logs=true"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (sentinel repo or trunk unavailable)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

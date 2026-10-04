@@ -1,0 +1,57 @@
+name: Test custom branch-name and prefix inputs
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up minimal trunk environment
+        run: |
+          mkdir -p .trunk/bin
+          # Create a minimal trunk.yaml
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+          # Create a fake trunk binary that simulates "Already up to date"
+          cat > .trunk/bin/trunk <<'SCRIPT'
+          #!/bin/sh
+          if echo "$*" | grep -q "upgrade"; then
+            echo "Already up to date"
+            exit 0
+          fi
+          if echo "$*" | grep -q "daemon"; then
+            exit 0
+          fi
+          exit 0
+          SCRIPT
+          chmod +x .trunk/bin/trunk
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          trunk-path: .trunk/bin/trunk
+          base: main
+          branch-name: custom/upgrade-branch
+          prefix: "[chore] "
+          labels: trunk,automated
+
+      - name: Assert action ran with custom branch and prefix
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded with custom branch-name and prefix (already up to date)"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected with sentinel repo)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

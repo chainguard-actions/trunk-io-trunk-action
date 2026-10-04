@@ -26,4 +26,4 @@ fi
 safe_trunk_path="$(printf '%s' "${trunk_path}" | tr -d '\n\r')"
 echo "TRUNK_PATH=${safe_trunk_path}" >>"${GITHUB_ENV}"
 # Ensure that trunk CLI is downloaded before subsequent steps
-${trunk_path} version || echo "::warning::${trunk_path} does not exist!"
+"${trunk_path}" version || echo "::warning::${trunk_path} does not exist!"

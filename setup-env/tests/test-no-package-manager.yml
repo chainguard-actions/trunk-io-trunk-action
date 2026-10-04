@@ -1,0 +1,40 @@
+name: Test no package manager detected
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Ensure no lock files exist in workspace root
+        run: |
+          rm -f "$GITHUB_WORKSPACE/package-lock.json"
+          rm -f "$GITHUB_WORKSPACE/yarn.lock"
+          rm -f "$GITHUB_WORKSPACE/pnpm-lock.yaml"
+          rm -f "$GITHUB_WORKSPACE/package.json"
+          rm -f "$GITHUB_WORKSPACE/.nvmrc"
+          rm -f "$GITHUB_WORKSPACE/.node-version"
+          rm -f "$GITHUB_WORKSPACE/.tool-versions"
+          echo "Lock files removed (if any existed)"
+          ls -la "$GITHUB_WORKSPACE/"
+
+      - id: action
+        uses: .
+
+      - name: Assert action succeeded with no package manager
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          PM: ${{ env.PACKAGE_MANAGER }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "PACKAGE_MANAGER env: '${PACKAGE_MANAGER}'"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: expected action to succeed but got '$OUTCOME'"
+            exit 1
+          fi
+          if [ -n "${PACKAGE_MANAGER}" ]; then
+            echo "FAIL: expected PACKAGE_MANAGER to be unset but got '${PACKAGE_MANAGER}'"
+            exit 1
+          fi
+          echo "PASS: no package manager detected as expected"
