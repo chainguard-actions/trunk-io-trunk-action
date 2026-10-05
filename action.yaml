@@ -355,7 +355,7 @@ runs:
         path: ${{ env.TRUNK_TMPDIR }}/annotations.bin
     - name: Download annotations artifact
       if: inputs.post-annotations == 'true'
-      uses: chainguard-actions/actions-github-script@59cd9717974bea467a79587570a7ca4501543bb6 # v9.0.0
+      uses: chainguard-actions/actions-github-script@90ea3578c9f973abcd1e50255ba3c1cd19216b51 # v9.0.0
       with:
         # TODO(chris): We can't use the official download artifact action yet: https://github.com/actions/download-artifact/issues/172
         script: |
