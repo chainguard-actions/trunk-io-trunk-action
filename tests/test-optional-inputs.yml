@@ -1,0 +1,123 @@
+name: Test optional inputs coverage
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to avoid auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - name: Place a fake trunk binary to avoid network download
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk <<'EOF'
+          #!/bin/sh
+          # Fake trunk binary for testing
+          if [ "$1" = "version" ]; then
+            echo "1.22.2"
+            exit 0
+          fi
+          echo "fake trunk: $*"
+          exit 0
+          EOF
+          chmod +x .trunk/bin/trunk
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          arguments: "--verbose"
+          cache-key: "my-custom-cache-key"
+          check-run-id: "12345"
+          github-token: ${{ github.token }}
+          label: "my-label"
+          trunk-token: "fake-trunk-token-for-test"
+          upload-series: "my-upload-series"
+
+      - name: Assert INPUT_ARGUMENTS was set
+        env:
+          ACTUAL: ${{ env.INPUT_ARGUMENTS }}
+        run: |
+          echo "INPUT_ARGUMENTS: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected INPUT_ARGUMENTS to be set but got empty"
+            exit 1
+          fi
+          echo "PASS: INPUT_ARGUMENTS=$ACTUAL"
+
+      - name: Assert INPUT_CACHE_KEY contains custom key
+        env:
+          ACTUAL: ${{ env.INPUT_CACHE_KEY }}
+        run: |
+          echo "INPUT_CACHE_KEY: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected INPUT_CACHE_KEY to be set but got empty"
+            exit 1
+          fi
+          echo "PASS: INPUT_CACHE_KEY=$ACTUAL"
+
+      - name: Assert INPUT_CHECK_RUN_ID was set
+        env:
+          ACTUAL: ${{ env.INPUT_CHECK_RUN_ID }}
+        run: |
+          echo "INPUT_CHECK_RUN_ID: $ACTUAL"
+          if [ "$ACTUAL" != "12345" ]; then
+            echo "FAIL: expected INPUT_CHECK_RUN_ID=12345 but got: $ACTUAL"
+            exit 1
+          fi
+          echo "PASS: INPUT_CHECK_RUN_ID=$ACTUAL"
+
+      - name: Assert INPUT_LABEL was set
+        env:
+          ACTUAL: ${{ env.INPUT_LABEL }}
+        run: |
+          echo "INPUT_LABEL: $ACTUAL"
+          if [ "$ACTUAL" != "my-label" ]; then
+            echo "FAIL: expected INPUT_LABEL=my-label but got: $ACTUAL"
+            exit 1
+          fi
+          echo "PASS: INPUT_LABEL=$ACTUAL"
+
+      - name: Assert INPUT_UPLOAD_SERIES was set
+        env:
+          ACTUAL: ${{ env.INPUT_UPLOAD_SERIES }}
+        run: |
+          echo "INPUT_UPLOAD_SERIES: $ACTUAL"
+          if [ "$ACTUAL" != "my-upload-series" ]; then
+            echo "FAIL: expected INPUT_UPLOAD_SERIES=my-upload-series but got: $ACTUAL"
+            exit 1
+          fi
+          echo "PASS: INPUT_UPLOAD_SERIES=$ACTUAL"
+
+      - name: Assert GITHUB_TOKEN was set from github-token input
+        env:
+          ACTUAL: ${{ env.GITHUB_TOKEN }}
+        run: |
+          echo "GITHUB_TOKEN is set: $([ -n "$ACTUAL" ] && echo yes || echo no)"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected GITHUB_TOKEN to be set"
+            exit 1
+          fi
+          echo "PASS: GITHUB_TOKEN is set"
+
+      - name: Assert TRUNK_TOKEN was set from trunk-token input
+        env:
+          ACTUAL: ${{ env.TRUNK_TOKEN }}
+        run: |
+          echo "TRUNK_TOKEN: $ACTUAL"
+          if [ "$ACTUAL" != "fake-trunk-token-for-test" ]; then
+            echo "FAIL: expected TRUNK_TOKEN=fake-trunk-token-for-test but got: $ACTUAL"
+            exit 1
+          fi
+          echo "PASS: TRUNK_TOKEN=$ACTUAL"

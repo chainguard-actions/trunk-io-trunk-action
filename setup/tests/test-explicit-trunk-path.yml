@@ -1,0 +1,50 @@
+name: Test explicit trunk-path input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create a fake trunk binary
+        run: |
+          mkdir -p /tmp/fake-trunk-bin
+          cat > /tmp/fake-trunk-bin/trunk << 'EOF'
+          #!/bin/sh
+          if [ "$1" = "version" ]; then
+            echo "fake-trunk 0.0.0"
+            exit 0
+          fi
+          exit 0
+          EOF
+          chmod +x /tmp/fake-trunk-bin/trunk
+          echo "Fake trunk created at /tmp/fake-trunk-bin/trunk"
+          /tmp/fake-trunk-bin/trunk version
+
+      - id: action
+        uses: .
+        with:
+          trunk-path: /tmp/fake-trunk-bin/trunk
+
+      - name: Assert TRUNK_PATH is set to the provided path
+        run: |
+          echo "TRUNK_PATH: $TRUNK_PATH"
+          if [ -z "$TRUNK_PATH" ]; then
+            echo "FAIL: TRUNK_PATH env var was not set"
+            exit 1
+          fi
+          if [ "$TRUNK_PATH" != "/tmp/fake-trunk-bin/trunk" ]; then
+            echo "FAIL: expected TRUNK_PATH='/tmp/fake-trunk-bin/trunk' but got '$TRUNK_PATH'"
+            exit 1
+          fi
+          echo "PASS: TRUNK_PATH correctly set to '$TRUNK_PATH'"
+
+      - name: Assert TRUNK_TMPDIR env var is set
+        run: |
+          echo "TRUNK_TMPDIR: $TRUNK_TMPDIR"
+          if [ -z "$TRUNK_TMPDIR" ]; then
+            echo "FAIL: TRUNK_TMPDIR env var was not set"
+            exit 1
+          fi
+          echo "PASS: TRUNK_TMPDIR is set to '$TRUNK_TMPDIR'"

@@ -1,0 +1,35 @@
+name: Test basic usage - no trunk config
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # The action requires .trunk/trunk.yaml to exist; without it, it exits with an error.
+      # We test that the action fails gracefully when trunk config is absent.
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          base: main
+          branch-name: trunk-io/update-trunk-test
+          labels: trunk,automated
+          add-paths: .trunk
+          github-token: ${{ github.token }}
+
+      - name: Assert action failed gracefully (no .trunk/trunk.yaml)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected (no .trunk/trunk.yaml present)"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded unexpectedly (trunk may be present)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

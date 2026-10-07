@@ -2,11 +2,12 @@
   "owner": "trunk-io",
   "repo": "trunk-action",
   "version": "v1.2.4",
+  "path": "upgrade",
   "commit_sha": "75699af9e26881e564e9d832ef7dc3af25ec031b",
   "url": "https://github.com/trunk-io/trunk-action",
   "policy_sha": "d636be7e43ef829af6e853da6b3c7566db9f72fe",
   "test_policy_sha": "843adf9e4b8f85d0c08b27b9d0b09dd094b54702",
   "test_agent_version": "2",
   "harden_agent_version": "2",
-  "dependency_fingerprint": "sha256:0b726f2c54df084ccc1e5ebba0e33055498092a52622edf42cfad16ef3d2f64f"
+  "dependency_fingerprint": "sha256:f68c1cc73b760084298226ff199b234722046ba4b3ac24b35d1565764f85b5c8"
 }

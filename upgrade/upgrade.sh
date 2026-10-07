@@ -3,12 +3,13 @@
 set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
+# Tokenize UPGRADE_ARGUMENTS into an array to safely handle user-controlled input.
 upgrade_args=()
-if [[ -n "${UPGRADE_ARGUMENTS}" ]]; then
-  # Split UPGRADE_ARGUMENTS on whitespace into array elements
-  read -ra upgrade_args <<< "${UPGRADE_ARGUMENTS}"
+if [ -n "${UPGRADE_ARGUMENTS}" ]; then
+  while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
+    < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
 fi
-upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_args[@]+"${upgrade_args[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -47,10 +48,18 @@ d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
-{
-  echo "PR_DESCRIPTION<<EOF"
-  echo "${description}"
-  echo "EOF"
-} >>"${GITHUB_ENV}"
+# Sanitize title_message to prevent newline injection into GITHUB_ENV
+safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
 
-echo "PR_TITLE=${title_message}" >>"${GITHUB_ENV}"
+# Sanitize description to prevent newline injection into GITHUB_ENV.
+# Strip carriage returns; newlines are safe inside the heredoc delimiter block.
+# Use a unique random delimiter to prevent early termination via injected "EOF" lines.
+_delim="TRUNK_UPGRADE_EOF_$$_${RANDOM}"
+{
+  echo "PR_DESCRIPTION<<${_delim}"
+  printf '%s' "${description}" | tr -d '\r'
+  echo ""
+  echo "${_delim}"
+} >> "${GITHUB_ENV}"
+
+echo "PR_TITLE=${safe_title}" >> "${GITHUB_ENV}"
