@@ -10,28 +10,33 @@
 
 **Harden Agent Version:** `2`
 
-Action **trunk-io--trunk-action--setup-env/v2.0.0** was hardened automatically. 1 finding(s) were identified and resolved across 1 iteration(s).
+Action **trunk-io--trunk-action--setup-env/v2.0.0** was hardened automatically. 3 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Three `${{ }}` expressions are interpolated directly inside `run:` shell command strings, allowing template substitution before the shell ever sees the value:
-
-1. Line 110: `if [ ${{ steps.setup_node.outcome }} == "success" ]` — `steps.*.outcome` is a workflow-controllable context value injected directly into a shell `if` test without quoting or env-var indirection.
-
-2. Line 137: `run: ${{ env.INSTALL_CMD }}` — the entire shell command is the `env.INSTALL_CMD` expression. Although `INSTALL_CMD` is set to a literal string earlier in the same composite action, the `env.*` context is workflow-controllable (a calling workflow can override it), so this is a direct expression injection into the run command.
-
-3. Line 144: `if [ ${{ steps.install_packages.outcome }} == "success" ]` — same pattern as finding #1 with `steps.install_packages.outcome`.
-
-Sub-rule (b): Line ~155: `${TRUNK_PATH} check disable eslint stylelint` — `TRUNK_PATH` is an inherited process env var (set by the calling workflow, never assigned in this run block) and is used unquoted as the command prefix, allowing shell metacharacter injection if the calling workflow sets it to a malicious value.
+Sub-rule (a): The 'Check for node installation' run: block directly interpolates a ${{ }} expression inside a shell command string: `if [ ${{ steps.setup_node.outcome }} == "success" ]; then`. Any ${{ ... }} expression inside a run: block is a script-injection risk because YAML template substitution occurs before the shell ever sees the value, bypassing shell quoting.
 
 Locations:
 
-- `action.yaml:110`
-- `action.yaml:137`
-- `action.yaml:144`
-- `action.yaml:155`
+- `action.yaml:118`
+
+### script-injection (severity: high)
+
+Sub-rule (a): The 'Install packages' step uses `run: ${{ env.INSTALL_CMD }}` — the entire shell command is a ${{ }} expression. `env.INSTALL_CMD` is set from $GITHUB_ENV which is workflow-controllable, and the value is substituted by the YAML template engine before the shell executes it, allowing injection of arbitrary shell commands.
+
+Locations:
+
+- `action.yaml:131`
+
+### script-injection (severity: high)
+
+Sub-rule (a): The 'Check for package install' run: block directly interpolates a ${{ }} expression inside a shell command string: `if [ ${{ steps.install_packages.outcome }} == "success" ]; then`. Any ${{ ... }} expression inside a run: block is a script-injection risk because YAML template substitution occurs before the shell ever sees the value, bypassing shell quoting.
+
+Locations:
+
+- `action.yaml:138`
 
 ## Iteration Notes
 
@@ -41,9 +46,16 @@ Locations:
 
 **Notes:**
 
-Fixed all four script-injection findings in action.yaml:
-1. Line 110: Moved `${{ steps.setup_node.outcome }}` into an `env:` block as `SETUP_NODE_OUTCOME` and referenced it as `"$SETUP_NODE_OUTCOME"` in the shell `if` test.
-2. Line 137: Replaced `run: ${{ env.INSTALL_CMD }}` with `run: $INSTALL_CMD` — INSTALL_CMD is already exported to GITHUB_ENV by the first step, so it's available as a process env var without template expression injection.
-3. Line 144: Moved `${{ steps.install_packages.outcome }}` into an `env:` block as `INSTALL_PACKAGES_OUTCOME` and referenced it as `"$INSTALL_PACKAGES_OUTCOME"` in the shell `if` test.
-4. Line ~155: Quoted `${TRUNK_PATH}` as `"$TRUNK_PATH"` to prevent shell metacharacter injection from a caller-controlled environment variable.
+Fixed all three script-injection findings in hardened/action/action.yaml:
+1. Line 118 ('Check for node installation'): Moved `${{ steps.setup_node.outcome }}` into an `env:` block as `SETUP_NODE_OUTCOME` and referenced it as `"$SETUP_NODE_OUTCOME"` in the shell.
+2. Line 131 ('Install packages'): Replaced `run: ${{ env.INSTALL_CMD }}` with `run: eval "$INSTALL_CMD"` — INSTALL_CMD is already available as a shell environment variable (set via GITHUB_ENV), so eval executes it correctly without any template expression in the run block.
+3. Line 138 ('Check for package install'): Moved `${{ steps.install_packages.outcome }}` into an `env:` block as `INSTALL_PACKAGES_OUTCOME` and referenced it as `"$INSTALL_PACKAGES_OUTCOME"` in the shell.
+
+### Iteration 2
+
+**Fixes applied:** suspicious-run-content, script-injection
+
+**Notes:**
+
+1. suspicious-run-content (line 148): Replaced `eval "$INSTALL_CMD"` with a `case "$PACKAGE_MANAGER"` statement that directly executes the appropriate package manager command (npm ci / yarn install --immutable / pnpm install --frozen-lockfile). This eliminates the eval-dynamic pattern while preserving identical behavior — INSTALL_CMD was always one of these three literal values anyway. 2. script-injection (line 163): Quoted `${TRUNK_PATH}` as `"${TRUNK_PATH}"` to prevent shell metacharacter injection if TRUNK_PATH contains spaces, semicolons, pipes, or other special characters.
 

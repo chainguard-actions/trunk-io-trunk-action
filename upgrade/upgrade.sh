@@ -4,11 +4,11 @@ set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
 upgrade_args=()
-if [ -n "${UPGRADE_ARGUMENTS}" ]; then
+if [ -n "${UPGRADE_ARGUMENTS:-}" ]; then
   while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
     < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
 fi
-upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]+"${upgrade_args[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -25,7 +25,7 @@ if [[ ${trimmed_upgrade_output} == *"cli upgrade"* ]]; then
   title_message="Upgrade trunk to ${new_cli_version}"
 fi
 
-if [[ "${LOWERCASE_TITLE}" == "true" ]]; then
+if [[ ${LOWERCASE_TITLE} == "true" ]]; then
   title_message=$(echo "${title_message}" | tr '[:upper:]' '[:lower:]')
 fi
 
@@ -47,12 +47,14 @@ d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
-safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
 safe_description=$(printf '%s' "${description}" | tr -d '\r')
+safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
+# Use a random delimiter to prevent heredoc injection if description contains a line equal to the delimiter
+_env_delim="EOF_$(dd if=/dev/urandom bs=15 count=1 2>/dev/null | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
 {
-  echo "PR_DESCRIPTION<<EOF"
+  echo "PR_DESCRIPTION<<${_env_delim}"
   echo "${safe_description}"
-  echo "EOF"
+  echo "${_env_delim}"
 } >>"${GITHUB_ENV}"
 
 echo "PR_TITLE=${safe_title}" >>"${GITHUB_ENV}"

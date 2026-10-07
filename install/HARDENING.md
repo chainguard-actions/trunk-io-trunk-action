@@ -16,7 +16,7 @@ Action **trunk-io--trunk-action--install/v2.0.0** was hardened automatically. 2 
 
 ### script-injection (severity: high)
 
-Sub-rule (a): The 'Trunk install' step in action.yaml directly interpolates `${{ inputs.tools }}` inside a `run:` shell command string: `trunk tools install --ci ${{ inputs.tools }}`. The YAML template engine substitutes this value before the shell processes it, allowing an attacker-controlled input to inject arbitrary shell metacharacters and commands (e.g., a value like `; malicious-command` would be executed). The fix is to pass the input via an `env:` variable and double-quote the expansion: set `TOOLS: ${{ inputs.tools }}` in an `env:` block and use `trunk tools install --ci "$TOOLS"` in the run script.
+Sub-rule (a): The `${{ inputs.tools }}` expression is directly interpolated into the `run:` shell command string in the 'Trunk install' step. Because YAML template substitution happens before the shell ever sees the string, an attacker-controlled value for `inputs.tools` can inject arbitrary shell commands (e.g. semicolons, backticks, subshell operators). The fix is to pass the value through an `env:` block and reference it as a quoted shell variable: `env: TOOLS: ${{ inputs.tools }}` then `run: trunk tools install --ci "$TOOLS"`.
 
 Locations:
 
@@ -38,5 +38,5 @@ Locations:
 
 **Notes:**
 
-Fixed script injection in hardened/action/action.yaml: moved `${{ inputs.tools }}` from the `run:` shell string into an `env:` block as `INPUT_TOOLS`. Since `tools` is a list-style input (space-separated tool names), used xargs-based quote-aware tokenization into a bash array, guarded by a `[ -n "$INPUT_TOOLS" ]` check to handle the optional/empty case. The array is then expanded with `"${tools[@]}"` to preserve argument boundaries. Both findings (script-injection at action.yaml:27 and static-inline-injection at action.yml:32) refer to the same issue and are resolved by this fix.
+Fixed the script-injection finding in hardened/action/action.yaml (the 'Trunk install' step). Moved ${{ inputs.tools }} from the run: shell string into an env: block as INPUT_TOOLS. Since 'tools' is a list-style input (space-separated tool names to install), used the xargs tokenization pattern to safely split the value into a bash array with a guard for the empty case, then expanded the array as arguments to 'trunk tools install --ci'. Both findings (script-injection and static-inline-injection) refer to the same issue in the same file (action.yaml / action.yml are the same file).
 

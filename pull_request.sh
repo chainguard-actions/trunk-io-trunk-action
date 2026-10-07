@@ -5,16 +5,16 @@ set -euo pipefail
 # shellcheck source=git_github.sh
 source "${BASH_SOURCE[0]%/*}/git_github.sh"
 
-if [[ ${INPUT_DEBUG} == "true" ]]; then
-  set -x
+# Tokenize INPUT_ARGUMENTS (a caller-controlled list of extra flags) in a
+# quote-aware manner so that shell metacharacters are never evaluated.
+input_args=()
+if [ -n "${INPUT_ARGUMENTS:-}" ]; then
+  while IFS= read -r -d '' t; do input_args+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
 fi
 
-# Tokenize INPUT_ARGUMENTS (an args-style list) into an array using xargs so that
-# quoted sub-arguments are handled correctly without enabling shell injection.
-input_arguments=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
+if [[ ${INPUT_DEBUG} == "true" ]]; then
+  set -x
 fi
 
 if [[ ${INPUT_GITHUB_REF_NAME} == "${GITHUB_EVENT_PULL_REQUEST_NUMBER}/merge" ]]; then
@@ -49,7 +49,7 @@ else
 fi
 
 if [[ -n ${INPUT_AUTOFIX_AND_PUSH} ]]; then
-  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" "${input_arguments[@]}"
+  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" "${input_args[@]}"
   git config --global user.email ""
   git config --global user.name "${GITHUB_ACTOR}"
   git commit --all --allow-empty --message "Trunk Check applied autofixes"
@@ -61,5 +61,5 @@ else
     --github-commit "${git_commit}" \
     --github-label "${INPUT_LABEL}" \
     "${annotation_argument}" \
-    "${input_arguments[@]}"
+    "${input_args[@]}"
 fi

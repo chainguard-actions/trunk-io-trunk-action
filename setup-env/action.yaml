@@ -150,7 +150,13 @@ runs:
       id: install_packages
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash
-      run: $INSTALL_CMD
+      run: |
+        case "$PACKAGE_MANAGER" in
+          npm)  npm ci ;;
+          yarn) yarn install --immutable ;;
+          pnpm) pnpm install --frozen-lockfile ;;
+          *)    echo "::error::Unknown package manager: $PACKAGE_MANAGER"; exit 1 ;;
+        esac
       continue-on-error: true
     - name: Check for package install
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
@@ -170,4 +176,4 @@ runs:
         fi
         echo "::warning::Failed to install node packages."
         echo "::warning::Disabling linters that depend on node packages."
-        "$TRUNK_PATH" check disable eslint stylelint
+        "${TRUNK_PATH}" check disable eslint stylelint

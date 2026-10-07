@@ -5,19 +5,19 @@ set -euo pipefail
 # shellcheck source=git_github.sh
 source "${BASH_SOURCE[0]%/*}/git_github.sh"
 
+# Tokenize INPUT_ARGUMENTS (a caller-controlled list of extra flags) in a
+# quote-aware manner so that shell metacharacters are never evaluated.
+input_args=()
+if [ -n "${INPUT_ARGUMENTS:-}" ]; then
+  while IFS= read -r -d '' t; do input_args+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
+fi
+
 if [[ ${INPUT_DEBUG} == "true" ]]; then
   set -x
 fi
 
 MINIMUM_UPLOAD_ID_VERSION=1.12.3
-
-# Tokenize INPUT_ARGUMENTS (an args-style list) into an array using xargs so that
-# quoted sub-arguments are handled correctly without enabling shell injection.
-input_arguments=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
 
 echo "::warning::Check uploads and check all mode is no longer supported. Please see https://docs.trunk.io/code-quality/setup-and-installation/prevent-new-issues/migration-guide for more information."
 if [[ -z ${INPUT_TRUNK_TOKEN} ]]; then
@@ -25,7 +25,7 @@ if [[ -z ${INPUT_TRUNK_TOKEN} ]]; then
     --ci \
     --all \
     --github-commit "${GITHUB_SHA}" \
-    "${input_arguments[@]}"
+    "${input_args[@]}"
 elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
   latest_raw_upload="$(mktemp)"
   prev_ref="$("${TRUNK_PATH}" check get-latest-raw-output \
@@ -39,8 +39,7 @@ elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
     fetch origin "${prev_ref}"
   fi
   if [[ -n ${INPUT_UPLOAD_ID-} ]]; then # if upload ID unset, skip it instead of erroring
-    upload_id_arg="--upload-id"
-    upload_id_val="${INPUT_UPLOAD_ID}"
+    upload_id_arg="--upload-id ${INPUT_UPLOAD_ID}"
     trunk_version="$(${TRUNK_PATH} version)"
     # trunk-ignore-begin(shellcheck/SC2312): the == will fail if anything inside the $() fails
     if sort_result=$(printf "%s\n%s\n" "${MINIMUM_UPLOAD_ID_VERSION}" "${trunk_version}" | sort --version-sort); then
@@ -54,42 +53,19 @@ elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
     # trunk-ignore-end(shellcheck/SC2312)
   else
     upload_id_arg=""
-    upload_id_val=""
   fi
-  if [[ -n ${htl_arg} && -n ${upload_id_arg} ]]; then
-    "${TRUNK_PATH}" check \
-      --all \
-      --upload \
-      "${htl_arg}" \
-      "${upload_id_arg}" "${upload_id_val}" \
-      --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-      "${input_arguments[@]}"
-  elif [[ -n ${htl_arg} ]]; then
-    "${TRUNK_PATH}" check \
-      --all \
-      --upload \
-      "${htl_arg}" \
-      --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-      "${input_arguments[@]}"
-  elif [[ -n ${upload_id_arg} ]]; then
-    "${TRUNK_PATH}" check \
-      --all \
-      --upload \
-      "${upload_id_arg}" "${upload_id_val}" \
-      --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-      "${input_arguments[@]}"
-  else
-    "${TRUNK_PATH}" check \
-      --all \
-      --upload \
-      --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-      "${input_arguments[@]}"
-  fi
+  "${TRUNK_PATH}" check \
+    --all \
+    --upload \
+    ${htl_arg} \
+    ${upload_id_arg} \
+    --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
+    "${input_args[@]}"
 else
   "${TRUNK_PATH}" check \
     --all \
     --upload \
     --series "${INPUT_UPLOAD_SERIES:-${INPUT_GITHUB_REF_NAME}}" \
     --token "${INPUT_TRUNK_TOKEN}" \
-    "${input_arguments[@]}"
+    "${input_args[@]}"
 fi
