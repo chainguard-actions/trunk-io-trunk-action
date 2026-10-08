@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# shellcheck disable=SC2086
-
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -17,13 +15,20 @@ fetch() {
 
 MINIMUM_UPLOAD_ID_VERSION=1.12.3
 
+# Tokenize INPUT_ARGUMENTS (a whitespace-separated list of extra CLI flags) into an array
+_input_arguments=()
+if [ -n "${INPUT_ARGUMENTS}" ]; then
+  while IFS= read -r -d '' t; do _input_arguments+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
+fi
+
 echo "::warning::Check uploads and check all mode is no longer supported. Please see https://docs.trunk.io/code-quality/setup-and-installation/prevent-new-issues/migration-guide for more information."
 if [[ -z ${INPUT_TRUNK_TOKEN} ]]; then
   "${TRUNK_PATH}" check \
     --ci \
     --all \
     --github-commit "${GITHUB_SHA}" \
-    ${INPUT_ARGUMENTS}
+    "${_input_arguments[@]}"
 elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
   latest_raw_upload="$(mktemp)"
   prev_ref="$("${TRUNK_PATH}" check get-latest-raw-output \
@@ -58,12 +63,12 @@ elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
     ${htl_arg} \
     ${upload_id_arg} \
     --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-    ${INPUT_ARGUMENTS}
+    "${_input_arguments[@]}"
 else
   "${TRUNK_PATH}" check \
     --all \
     --upload \
     --series "${INPUT_UPLOAD_SERIES:-${INPUT_GITHUB_REF_NAME}}" \
     --token "${INPUT_TRUNK_TOKEN}" \
-    ${INPUT_ARGUMENTS}
+    "${_input_arguments[@]}"
 fi

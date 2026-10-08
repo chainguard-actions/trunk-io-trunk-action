@@ -10,63 +10,47 @@
 
 **Harden Agent Version:** `2`
 
-Action **trunk-io--trunk-action--upgrade/v1.2.2** was hardened automatically. 3 finding(s) were identified and resolved across 3 iteration(s).
+Action **trunk-io--trunk-action--upgrade/v1.2.2** was hardened automatically. 2 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Four run: blocks in action.yaml directly interpolate ${{ github.action_path }} into shell command strings. Although github.action_path is not attacker-controlled, any ${{ ... }} expression interpolated directly inside a run: block is a script-injection finding per the check rules. The affected steps are: 'Locate trunk' (${{ github.action_path }}/../setup/locate_trunk.sh), 'Detect setup strategy' (ln -s ${{ github.action_path }}/../setup-env .trunk/setup-ci), 'Run upgrade' (${{ github.action_path }}/upgrade.sh), and 'Cleanup temporary files' (${{ github.action_path }}/../cleanup.sh). These should be replaced with the $GITHUB_ACTION_PATH environment variable instead.
+Rule (a): Four `run:` blocks in action.yaml directly interpolate `${{ github.action_path }}` inside shell command strings. Any `${{ ... }}` expression inside a `run:` block is a script-injection risk regardless of context. Offending lines: (1) `${{ github.action_path }}/../setup/locate_trunk.sh` in the 'Locate trunk' step; (2) `ln -s ${{ github.action_path }}/../setup-env .trunk/setup-ci` in the 'Detect setup strategy' step; (3) `${{ github.action_path }}/upgrade.sh` in the 'Run upgrade' step; (4) `${{ github.action_path }}/../cleanup.sh` in the 'Cleanup temporary files' step. Rule (b): In upgrade.sh line 7, the env var `${UPGRADE_ARGUMENTS}` (sourced from `${{ inputs.arguments }}`, an attacker-controllable input) is expanded unquoted in a shell command: `${TRUNK_PATH} upgrade --no-progress -n ${UPGRADE_ARGUMENTS}`. A shellcheck suppression comment acknowledges this. Unquoted expansion allows shell metacharacter injection.
 
 Locations:
 
-- `action.yaml:86`
-- `action.yaml:100`
-- `action.yaml:111`
+- `action.yaml:90`
+- `action.yaml:107`
 - `action.yaml:121`
+- `action.yaml:130`
+- `upgrade.sh:7`
 
 ### unpinned-uses (severity: high)
 
-The step 'Create Pull Request' uses peter-evans/create-pull-request@v6, which is a mutable tag reference rather than a pinned 40-character commit SHA. A supply-chain attacker could push a new commit to the v6 tag and inject malicious code. It should be pinned to a full SHA, e.g. peter-evans/create-pull-request@<40-char-sha> # v6.
+The step 'Create Pull Request' references `peter-evans/create-pull-request@v6`, which uses a mutable version tag instead of a pinned 40-character commit SHA. A tag can be moved to point to a different (potentially malicious) commit, enabling supply-chain attacks. It should be pinned to a full SHA, e.g. `peter-evans/create-pull-request@<40-char-sha> # v6`.
 
 Locations:
 
-- `action.yaml:125`
-
-### github-env-injection (severity: high)
-
-In upgrade.sh, two values derived from untrusted input are written to $GITHUB_ENV without the required sanitization step (printf '%s' ... | tr -d '\n\r'). (1) PR_TITLE is set from title_message, which is constructed from trimmed_upgrade_output — the output of running trunk with ${UPGRADE_ARGUMENTS} (an env var set from inputs.arguments, an untrusted caller-controlled input). (2) PR_DESCRIPTION is set from description, which is also derived from the same upgrade output. An attacker who can influence the trunk upgrade output (e.g. via crafted inputs.arguments) could inject newlines to set arbitrary environment variables in subsequent steps. Neither write is preceded by sanitization.
-
-Locations:
-
-- `upgrade.sh:48`
-- `upgrade.sh:52`
+- `action.yaml:134`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, unpinned-uses, github-env-injection
+**Fixes applied:** script-injection, unpinned-uses
 
 **Notes:**
 
-1. script-injection (action.yaml lines 86, 100, 111, 121): Replaced all four occurrences of ${{ github.action_path }} in run: blocks with $GITHUB_ACTION_PATH environment variable. The paths are now properly quoted with double quotes.
-2. unpinned-uses (action.yaml line 125): Pinned peter-evans/create-pull-request@v6 to full commit SHA c5a7806660adbe173f04e3e038b0ccdcd758773c with # v6 comment for readability.
-3. github-env-injection (upgrade.sh lines 48, 52): Added sanitization before writing to $GITHUB_ENV. PR_TITLE uses 'printf | tr -d \n\r' to strip all newlines. PR_DESCRIPTION uses 'printf | tr -d \r' to strip carriage returns while preserving intentional newlines needed for the multiline heredoc format.
+Fixed all 4 occurrences of ${{ github.action_path }} in action.yaml run: blocks by replacing them with $GITHUB_ACTION_PATH (the standard environment variable). Fixed unquoted ${UPGRADE_ARGUMENTS} expansion in upgrade.sh by using xargs-based tokenization into a bash array (with proper guard for empty value). Pinned peter-evans/create-pull-request@v6 to full SHA c5a7806660adbe173f04e3e038b0ccdcd758773c with the tag preserved as a comment.
 
 ### Iteration 2
 
-**Fixes applied:** script-injection
+**Fixes applied:** github-env-injection
 
 **Notes:**
 
-Fixed script injection in upgrade.sh line 7: replaced unquoted `${UPGRADE_ARGUMENTS}` expansion with a proper xargs-based tokenization approach. The fix initializes an empty bash array, guards against empty input, uses `printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0'` with a null-delimited read loop to safely tokenize the argument list (honoring quotes without evaluating shell metacharacters), and expands `"${upgrade_args[@]}"` in the trunk upgrade command. The `trunk-ignore(shellcheck/SC2086)` comment was also removed since it's no longer needed.
-
-### Iteration 1
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed two unquoted ${TRUNK_PATH} expansions in hardened/action/upgrade.sh. Added double quotes around ${TRUNK_PATH} on line 11 (in the upgrade_output command substitution) and line 35 (daemon shutdown call). This prevents shell word-splitting and glob expansion on the TRUNK_PATH value, which could be exploited if the variable contains metacharacters.
+Fixed both github-env-injection findings in upgrade.sh:
+1. PR_DESCRIPTION (line ~49): Replaced the fixed 'EOF' heredoc terminator with a randomly generated unique marker using `openssl rand -hex 16`, preventing an attacker-controlled 'EOF' line in `description` from terminating the heredoc early and injecting additional GITHUB_ENV entries.
+2. PR_TITLE (line ~55): Added sanitization of `title_message` via `printf '%s' "${title_message}" | tr -d '\n\r'` before writing to GITHUB_ENV, preventing embedded newlines from injecting additional key=value pairs into the environment.
 

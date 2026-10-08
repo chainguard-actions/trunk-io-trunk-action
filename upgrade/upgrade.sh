@@ -8,7 +8,7 @@ if [ -n "${UPGRADE_ARGUMENTS}" ]; then
   while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
     < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
 fi
-upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -31,7 +31,7 @@ fi
 
 # Step 3: Prepare for pull request creation action.
 # Avoid triggering a git-hook, and avoid resetting git hook config via daemon
-"${TRUNK_PATH}" daemon shutdown
+${TRUNK_PATH} daemon shutdown
 git config --local --unset core.hooksPath || true
 rm -f .trunk/landing-state.json
 
@@ -47,12 +47,12 @@ d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
-safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
-safe_description=$(printf '%s' "${description}" | tr -d '\r')
+_EOF_MARKER="EOF_$(openssl rand -hex 16)"
 {
-  echo "PR_DESCRIPTION<<EOF"
-  echo "${safe_description}"
-  echo "EOF"
+  echo "PR_DESCRIPTION<<${_EOF_MARKER}"
+  echo "${description}"
+  echo "${_EOF_MARKER}"
 } >>"${GITHUB_ENV}"
 
+safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
 echo "PR_TITLE=${safe_title}" >>"${GITHUB_ENV}"

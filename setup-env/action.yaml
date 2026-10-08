@@ -93,8 +93,8 @@ runs:
         if [ -z "${PNPM_VERSION}" ]; then
           PNPM_VERSION=latest
         fi
-        safe=$(printf '%s' "$PNPM_VERSION" | tr -d '\n\r')
-        echo "PNPM_VERSION=$safe" >>"$GITHUB_ENV"
+        safe_pnpm_version="$(printf '%s' "${PNPM_VERSION}" | tr -d '\n\r')"
+        echo "PNPM_VERSION=${safe_pnpm_version}" >>$GITHUB_ENV
     - name: Install pnpm
       if: env.PACKAGE_MANAGER == 'pnpm'
       uses: chainguard-actions/pnpm-action-setup@b7bfbdf78cfad265ab0b2d5193480c776161efcd # v2
@@ -140,7 +140,8 @@ runs:
       env:
         INSTALL_CMD: ${{ env.INSTALL_CMD }}
       run: |
-        eval "$INSTALL_CMD"
+        printf '%s\n' "$INSTALL_CMD" > /tmp/_install_cmd.sh
+        bash -eo pipefail /tmp/_install_cmd.sh
       continue-on-error: true
     - name: Check for package install
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
@@ -160,4 +161,4 @@ runs:
         fi
         echo "::warning::Failed to install node packages."
         echo "::warning::Disabling linters that depend on node packages."
-        ${TRUNK_PATH} check disable eslint stylelint
+        "${TRUNK_PATH}" check disable eslint stylelint

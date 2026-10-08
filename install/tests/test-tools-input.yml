@@ -23,7 +23,7 @@ jobs:
             '  enabled: []' \
             'tools:' \
             '  enabled:' \
-            '    - git-lfs' \
+            '    - gh' \
             'runtimes:' \
             '  enabled: []' \
             > .trunk/trunk.yaml
@@ -31,10 +31,10 @@ jobs:
       - id: action
         uses: .
         with:
-          tools: git-lfs
+          tools: gh
         continue-on-error: true
 
-      - name: Assert action ran with tools input and trunk binary was downloaded
+      - name: Assert action ran with tools input
         env:
           TRUNK_PATH: ${{ env.TRUNK_PATH }}
           OUTCOME: ${{ steps.action.outcome }}
@@ -50,14 +50,14 @@ jobs:
               echo "FAIL: trunk binary not executable at $TRUNK_PATH"
               exit 1
             fi
-            echo "PASS: trunk installed with tools input, trunk at $TRUNK_PATH"
+            echo "PASS: trunk installed with tools input at $TRUNK_PATH"
           elif [ "$OUTCOME" = "failure" ]; then
-            # trunk tools install may fail if trunk.io is unreachable or tool not available
-            # but get_trunk.sh should have run and set TRUNK_PATH
-            if [ -n "$TRUNK_PATH" ]; then
-              echo "PASS: trunk binary downloaded even though tools install failed (network/config issue)"
+            # trunk tools install may fail if trunk.io is unreachable or config is minimal
+            # but the trunk binary itself should have been downloaded (get_trunk.sh step)
+            if [ -n "$TRUNK_PATH" ] && [ -x "$TRUNK_PATH" ]; then
+              echo "PASS: trunk binary downloaded even though tools install failed (expected with network/config issues)"
             else
-              echo "PASS: action failed gracefully (network or environment issue)"
+              echo "PASS: action failed gracefully (network or config issue)"
             fi
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"

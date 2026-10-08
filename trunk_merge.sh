@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# shellcheck disable=SC2086
-
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -14,6 +12,13 @@ fetch() {
     --no-recurse-submodules \
     "$@"
 }
+
+# Tokenize INPUT_ARGUMENTS (a whitespace-separated list of extra CLI flags) into an array
+_input_arguments=()
+if [ -n "${INPUT_ARGUMENTS}" ]; then
+  while IFS= read -r -d '' t; do _input_arguments+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
+fi
 
 MINIMUM_CHECK_RUN_ID_VERSION=1.7.0
 
@@ -46,4 +51,4 @@ fi
   --github-commit "${git_commit}" \
   --github-label "${INPUT_LABEL}" \
   ${annotation_argument} \
-  ${INPUT_ARGUMENTS}
+  "${_input_arguments[@]}"

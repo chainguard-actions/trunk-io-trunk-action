@@ -1,4 +1,4 @@
-name: Test arguments, assignees, and reviewers inputs
+name: Test trunk upgrade with arguments, assignees, and reviewers
 on:
   workflow_dispatch:
 
@@ -18,10 +18,10 @@ jobs:
             version: 1.22.2
           EOF
 
-          # Create a fake trunk binary that accepts extra arguments and simulates "Already up to date"
+          # Create a fake trunk binary that simulates "Already up to date"
           cat > .trunk/bin/trunk <<'SCRIPT'
           #!/bin/sh
-          # Fake trunk binary for testing - accepts any arguments
+          # Fake trunk binary for testing
           if echo "$*" | grep -q "upgrade"; then
             echo "Already up to date"
             exit 0
@@ -38,13 +38,13 @@ jobs:
         continue-on-error: true
         with:
           trunk-path: .trunk/bin/trunk
-          base: main
-          arguments: --no-progress
+          arguments: --dry-run
           assignees: octocat
           reviewers: octocat
+          base: main
           labels: trunk
 
-      - name: Assert action ran with arguments, assignees, and reviewers
+      - name: Assert action ran with arguments, assignees, and reviewers inputs
         env:
           OUTCOME: ${{ steps.action.outcome }}
           PR_NUMBER: ${{ steps.action.outputs.pull-request-number }}

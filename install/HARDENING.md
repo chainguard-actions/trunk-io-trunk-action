@@ -16,11 +16,11 @@ Action **trunk-io--trunk-action--install/v1.2.2** was hardened automatically. 2 
 
 ### script-injection (severity: high)
 
-Sub-rule (a) violation: The `${{ inputs.tools }}` expression is directly interpolated into a `run:` shell command string without any quoting or sanitization. The offending line is: `run: trunk tools install --ci ${{ inputs.tools }}`. Because `inputs.tools` is a caller-controlled value (required: false, no default), an attacker invoking this composite action can supply a value such as `; malicious-command` to execute arbitrary shell commands on the runner.
+Rule (a) violation: The `${{ inputs.tools }}` expression is directly interpolated into a `run:` shell command string on line 30 of action.yaml (`run: trunk tools install --ci ${{ inputs.tools }}`). GitHub Actions performs template substitution before the shell ever sees the string, so an attacker-controlled value for `inputs.tools` can inject arbitrary shell commands (e.g., `; malicious-command`). The fix is to route the value through an `env:` variable and double-quote it in the script: set `env: TOOLS: ${{ inputs.tools }}` and use `run: trunk tools install --ci "$TOOLS"`.
 
 Locations:
 
-- `action.yaml:31`
+- `action.yaml:30`
 
 ### static-inline-injection (severity: high)
 
@@ -38,5 +38,5 @@ Locations:
 
 **Notes:**
 
-Fixed script injection in action.yaml at the 'Trunk install' step. Moved `${{ inputs.tools }}` from the run: shell command string into an env: block as INPUT_TOOLS. In the shell command, replaced the direct interpolation with `${INPUT_TOOLS:+"$INPUT_TOOLS"}` — this conditional expansion drops the argument entirely when INPUT_TOOLS is empty (preserving the original behavior for the optional input with no default), and double-quotes the value when present to prevent word splitting and globbing.
+Fixed action.yaml: moved `${{ inputs.tools }}` out of the `run:` block into an `env:` variable (`TOOLS: ${{ inputs.tools }}`). Since `inputs.tools` is a list-style input (space-separated tool names), used the xargs-based array tokenization pattern to safely split the value into individual arguments. Added an `if [ -n "$TOOLS" ]` guard to handle the optional (empty) case correctly. The command now runs as `trunk tools install --ci "${tools_args[@]}"` with no template injection risk.
 
