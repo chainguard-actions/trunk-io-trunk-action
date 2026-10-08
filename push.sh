@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086
+
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -13,13 +15,6 @@ fetch() {
     "$@"
 }
 
-# Tokenize INPUT_ARGUMENTS into an array (handles quoted args safely)
-input_arguments=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
-
 if [[ ${GITHUB_EVENT_BEFORE} == "0000000000000000000000000000000000000000" ]]; then
   # Github will send us all 0s for the before hash in a few circumstances, such as the first commit to a repo
   # or pushing a tag. In these instances we will check the whole repo.
@@ -27,7 +22,7 @@ if [[ ${GITHUB_EVENT_BEFORE} == "0000000000000000000000000000000000000000" ]]; t
     --ci \
     --all \
     --github-commit "${GITHUB_EVENT_AFTER}" \
-    "${input_arguments[@]+"${input_arguments[@]}"}"
+    ${INPUT_ARGUMENTS}
   exit
 fi
 
@@ -49,4 +44,4 @@ fi
   --ci \
   --upstream "${upstream}" \
   --github-commit "${GITHUB_EVENT_AFTER}" \
-  "${input_arguments[@]+"${input_arguments[@]}"}"
+  ${INPUT_ARGUMENTS}

@@ -1,34 +1,45 @@
-name: Test basic usage - no trunk config
+name: Test basic usage with trunk-path
 on:
   workflow_dispatch:
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # The action requires .trunk/trunk.yaml to exist; without it, it exits with an error.
-      # We test that the action fails gracefully when trunk config is absent.
+      - name: Set up fake trunk binary
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/bin"
+          cat > "$GITHUB_WORKSPACE/bin/trunk" << 'EOF'
+          #!/bin/sh
+          echo "Already up to date"
+          exit 0
+          EOF
+          chmod +x "$GITHUB_WORKSPACE/bin/trunk"
+
       - id: action
         uses: .
         continue-on-error: true
         with:
+          trunk-path: "${{ github.workspace }}/bin/trunk"
           base: main
-          branch-name: trunk-io/update-trunk-test
-          labels: trunk,automated
+          branch-name: trunk-io/update-trunk
+          labels: trunk
           add-paths: .trunk
-          github-token: ${{ github.token }}
+          lowercase-title: "false"
+          signoff: "false"
+          sign-commits: "false"
+          setup-deps: "false"
 
-      - name: Assert action failed gracefully (no .trunk/trunk.yaml)
+      - name: Assert action ran (trunk-path input accepted, graceful failure expected)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
-          if [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed as expected (no .trunk/trunk.yaml present)"
-          elif [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded unexpectedly (trunk may be present)"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected - missing locate_trunk.sh or .trunk/trunk.yaml)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

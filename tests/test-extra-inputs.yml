@@ -1,0 +1,54 @@
+name: Test extra inputs coverage
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal trunk config to avoid auto-init
+        run: |
+          mkdir -p .trunk
+          cat > .trunk/trunk.yaml <<'EOF'
+          version: 0.1
+          cli:
+            version: 1.22.2
+          EOF
+
+      - name: Place a fake trunk binary to avoid network download
+        run: |
+          mkdir -p .trunk/bin
+          cat > .trunk/bin/trunk <<'EOF'
+          #!/bin/sh
+          # Fake trunk binary for testing
+          if [ "$1" = "version" ]; then
+            echo "1.22.2"
+            exit 0
+          fi
+          echo "fake trunk: $*"
+          exit 0
+          EOF
+          chmod +x .trunk/bin/trunk
+
+      - name: Remove any leftover setup-ci symlink
+        run: rm -f .trunk/setup-ci
+
+      - id: action
+        uses: .
+        with:
+          check-mode: none
+          cache: "false"
+          arguments: "--no-progress"
+          cache-key: "my-custom-cache-key"
+          check-run-id: "12345"
+          github-token: ${{ github.token }}
+          label: "linux"
+          trunk-token: "dummy-trunk-token"
+          upload-series: "main"
+
+      - name: Assert action completed with extra inputs
+        run: |
+          echo "Action completed successfully with extra inputs"
+          echo "PASS: arguments, cache-key, check-run-id, github-token, label, trunk-token, upload-series all accepted"

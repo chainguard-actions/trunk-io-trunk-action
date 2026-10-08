@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086
+
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -12,13 +14,6 @@ fetch() {
     --no-recurse-submodules \
     "$@"
 }
-
-# Tokenize INPUT_ARGUMENTS into an array (handles quoted args safely)
-input_arguments=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
 
 MINIMUM_CHECK_RUN_ID_VERSION=1.7.0
 
@@ -67,7 +62,7 @@ else
 fi
 
 if [[ -n ${INPUT_AUTOFIX_AND_PUSH} ]]; then
-  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" "${input_arguments[@]+"${input_arguments[@]}"}"
+  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" ${INPUT_ARGUMENTS}
   git config --global user.email ""
   git config --global user.name "${GITHUB_ACTOR}"
   git commit --all --allow-empty --message "Trunk Check applied autofixes"
@@ -79,5 +74,5 @@ else
     --github-commit "${git_commit}" \
     --github-label "${INPUT_LABEL}" \
     "${annotation_argument}" \
-    "${input_arguments[@]+"${input_arguments[@]}"}"
+    ${INPUT_ARGUMENTS}
 fi

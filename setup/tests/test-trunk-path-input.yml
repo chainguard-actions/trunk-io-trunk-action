@@ -1,4 +1,4 @@
-name: Test explicit trunk-path input
+name: Test with explicit trunk-path input
 on:
   workflow_dispatch:
 jobs:
@@ -9,8 +9,8 @@ jobs:
 
       - name: Create a fake trunk binary
         run: |
-          mkdir -p /tmp/fake-trunk-bin
-          cat > /tmp/fake-trunk-bin/trunk << 'EOF'
+          mkdir -p "$GITHUB_WORKSPACE/fake-bin"
+          cat > "$GITHUB_WORKSPACE/fake-bin/trunk" << 'EOF'
           #!/bin/sh
           if [ "$1" = "version" ]; then
             echo "fake-trunk 0.0.0"
@@ -18,27 +18,24 @@ jobs:
           fi
           exit 0
           EOF
-          chmod +x /tmp/fake-trunk-bin/trunk
-          echo "Fake trunk created at /tmp/fake-trunk-bin/trunk"
-          /tmp/fake-trunk-bin/trunk version
+          chmod +x "$GITHUB_WORKSPACE/fake-bin/trunk"
+          echo "Fake trunk created at $GITHUB_WORKSPACE/fake-bin/trunk"
 
       - id: action
         uses: .
         with:
-          trunk-path: /tmp/fake-trunk-bin/trunk
+          trunk-path: ${{ github.workspace }}/fake-bin/trunk
 
       - name: Assert TRUNK_PATH is set to the provided path
         run: |
           echo "TRUNK_PATH: $TRUNK_PATH"
-          if [ -z "$TRUNK_PATH" ]; then
-            echo "FAIL: TRUNK_PATH env var was not set"
+          EXPECTED="$GITHUB_WORKSPACE/fake-bin/trunk"
+          echo "Expected: $EXPECTED"
+          if [ "$TRUNK_PATH" != "$EXPECTED" ]; then
+            echo "FAIL: expected TRUNK_PATH='$EXPECTED' but got '$TRUNK_PATH'"
             exit 1
           fi
-          if [ "$TRUNK_PATH" != "/tmp/fake-trunk-bin/trunk" ]; then
-            echo "FAIL: expected TRUNK_PATH='/tmp/fake-trunk-bin/trunk' but got '$TRUNK_PATH'"
-            exit 1
-          fi
-          echo "PASS: TRUNK_PATH correctly set to '$TRUNK_PATH'"
+          echo "PASS: TRUNK_PATH matches the provided trunk-path input"
 
       - name: Assert TRUNK_TMPDIR env var is set
         run: |

@@ -3,13 +3,13 @@
 set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
-# Tokenize UPGRADE_ARGUMENTS into an array to safely handle user-controlled input.
+# Parse UPGRADE_ARGUMENTS into an array with quote-aware tokenization.
 upgrade_args=()
 if [ -n "${UPGRADE_ARGUMENTS}" ]; then
   while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
     < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
 fi
-upgrade_output=$(${TRUNK_PATH} upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
+upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]+"${upgrade_args[@]}"}" | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -32,7 +32,7 @@ fi
 
 # Step 3: Prepare for pull request creation action.
 # Avoid triggering a git-hook, and avoid resetting git hook config via daemon
-${TRUNK_PATH} daemon shutdown
+"${TRUNK_PATH}" daemon shutdown
 git config --local --unset core.hooksPath || true
 rm -f .trunk/landing-state.json
 
@@ -48,18 +48,13 @@ d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
-# Sanitize title_message to prevent newline injection into GITHUB_ENV
+# Sanitize values before writing to GITHUB_ENV to prevent newline injection
+safe_description=$(printf '%s' "${description}" | tr -d '\n\r')
 safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
-
-# Sanitize description to prevent newline injection into GITHUB_ENV.
-# Strip carriage returns; newlines are safe inside the heredoc delimiter block.
-# Use a unique random delimiter to prevent early termination via injected "EOF" lines.
-_delim="TRUNK_UPGRADE_EOF_$$_${RANDOM}"
 {
-  echo "PR_DESCRIPTION<<${_delim}"
-  printf '%s' "${description}" | tr -d '\r'
-  echo ""
-  echo "${_delim}"
+  echo "PR_DESCRIPTION<<EOF"
+  echo "${safe_description}"
+  echo "EOF"
 } >> "${GITHUB_ENV}"
 
 echo "PR_TITLE=${safe_title}" >> "${GITHUB_ENV}"

@@ -15,6 +15,7 @@ jobs:
         run: |
           echo "TRUNK_PATH: $TRUNK_PATH"
           echo "TRUNK_TMPDIR: $TRUNK_TMPDIR"
+          echo "outcome: ${{ steps.action.outcome }}"
           if [ -z "$TRUNK_PATH" ]; then
             echo "FAIL: TRUNK_PATH env var was not set"
             exit 1

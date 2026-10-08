@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086
+
 set -euo pipefail
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
@@ -15,20 +17,12 @@ fetch() {
 
 MINIMUM_CHECK_RUN_ID_VERSION=1.7.0
 
-# Tokenize INPUT_ARGUMENTS into an array (handles quoted args safely)
-input_arguments=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
-
 head_sha=$(git rev-parse HEAD)
 fetch --depth=2 origin "${head_sha}"
 upstream=$(git rev-parse HEAD^1)
 git_commit=$(git rev-parse HEAD^2)
 echo "Detected merge queue commit, using HEAD^1 (${upstream}) as upstream and HEAD^2 (${git_commit}) as github commit"
 
-annotation_args=()
 if [[ -n ${INPUT_CHECK_RUN_ID} ]]; then
   trunk_version="$(${TRUNK_PATH} version)"
   # trunk-ignore-begin(shellcheck/SC2312): the == will fail if anything inside the $() fails
@@ -41,7 +35,9 @@ if [[ -n ${INPUT_CHECK_RUN_ID} ]]; then
     echo "::warning::sort --version-sort failed - continuing without checking CLI version"
   fi
   # trunk-ignore-end(shellcheck/SC2312)
-  annotation_args=("--trunk-annotate=${INPUT_CHECK_RUN_ID}")
+  annotation_argument=--trunk-annotate=${INPUT_CHECK_RUN_ID}
+else
+  annotation_argument=""
 fi
 
 "${TRUNK_PATH}" check \
@@ -49,5 +45,5 @@ fi
   --upstream "${upstream}" \
   --github-commit "${git_commit}" \
   --github-label "${INPUT_LABEL}" \
-  "${annotation_args[@]+"${annotation_args[@]}"}" \
-  "${input_arguments[@]+"${input_arguments[@]}"}"
+  ${annotation_argument} \
+  ${INPUT_ARGUMENTS}

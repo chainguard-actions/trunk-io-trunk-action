@@ -1,4 +1,4 @@
-name: Test basic usage (no tools input)
+name: Test with tools input specified
 on:
   workflow_dispatch:
 jobs:
@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create minimal trunk config
+      - name: Create minimal trunk config with a tool enabled
         run: |
           mkdir -p .trunk
           cat > .trunk/trunk.yaml <<'EOF'
@@ -22,16 +22,19 @@ jobs:
           lint:
             enabled: []
           tools:
-            enabled: []
+            enabled:
+              - gh@2.40.1
           actions:
             enabled: []
           EOF
 
       - id: action
         uses: .
+        with:
+          tools: gh
         continue-on-error: true
 
-      - name: Assert trunk was installed to PATH
+      - name: Assert trunk was installed and tools input was accepted
         run: |
           echo "Checking trunk in PATH..."
           if command -v trunk >/dev/null 2>&1; then
@@ -45,3 +48,4 @@ jobs:
               exit 1
             fi
           fi
+          echo "PASS: tools input was accepted by the action"
