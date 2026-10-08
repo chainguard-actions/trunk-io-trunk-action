@@ -1,4 +1,4 @@
-name: Test check-run-id input
+name: Test check-run-id and upload-series inputs
 on:
   workflow_dispatch:
 jobs:
@@ -32,7 +32,9 @@ jobs:
           check-mode: none
           cache: "false"
           check-run-id: "12345"
+          upload-series: main-branch
+          setup-deps: "false"
 
-      - name: Assert action completed with check-run-id input
+      - name: Assert action completed with check-run-id and upload-series inputs
         run: |
-          echo "PASS: action completed with check-run-id input"
+          echo "PASS: action completed with check-run-id and upload-series inputs"

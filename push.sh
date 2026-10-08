@@ -6,20 +6,19 @@ if [[ ${INPUT_DEBUG} == "true" ]]; then
   set -x
 fi
 
-# Tokenize INPUT_ARGUMENTS (a whitespace-separated list) into an array using
-# xargs so that quoted sub-arguments are handled correctly.
-input_arguments=()
-if [[ -n ${INPUT_ARGUMENTS} ]]; then
-  while IFS= read -r -d '' t; do input_arguments+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
-
 fetch() {
   git -c protocol.version=2 fetch -q \
     --no-tags \
     --no-recurse-submodules \
     "$@"
 }
+
+# Tokenize INPUT_ARGUMENTS into an array (handles quoted sub-arguments safely)
+input_args=()
+if [ -n "${INPUT_ARGUMENTS}" ]; then
+  while IFS= read -r -d '' t; do input_args+=("$t"); done \
+    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
+fi
 
 if [[ ${GITHUB_EVENT_BEFORE} == "0000000000000000000000000000000000000000" ]]; then
   # Github will send us all 0s for the before hash in a few circumstances, such as the first commit to a repo
@@ -28,7 +27,7 @@ if [[ ${GITHUB_EVENT_BEFORE} == "0000000000000000000000000000000000000000" ]]; t
     --ci \
     --all \
     --github-commit "${GITHUB_EVENT_AFTER}" \
-    "${input_arguments[@]}"
+    "${input_args[@]}"
   exit
 fi
 
@@ -50,4 +49,4 @@ fi
   --ci \
   --upstream "${upstream}" \
   --github-commit "${GITHUB_EVENT_AFTER}" \
-  "${input_arguments[@]}"
+  "${input_args[@]}"
