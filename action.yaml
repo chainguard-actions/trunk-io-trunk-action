@@ -441,7 +441,7 @@ runs:
         path: ${{ env.TRUNK_TMPDIR }}/annotations.bin
     - name: Download annotations artifact
       if: inputs.post-annotations == 'true'
-      uses: chainguard-actions/actions-github-script@2b8beddf2d0d1ba8e353f16cae078671866153e7 # v7
+      uses: chainguard-actions/actions-github-script@2eb36dfc7b0c45324bad261644779a31d204088b # v7
       env:
         WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
         TRUNK_TMPDIR_SCRIPT: ${{ env.TRUNK_TMPDIR }}
