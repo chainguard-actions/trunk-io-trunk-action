@@ -3,12 +3,8 @@
 set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
-upgrade_args=()
-if [ -n "${UPGRADE_ARGUMENTS:-}" ]; then
-  while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
-    < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
-fi
-upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
+# trunk-ignore(shellcheck/SC2086): pass arguments directly as is
+upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n ${UPGRADE_ARGUMENTS} | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -47,14 +43,13 @@ d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
-safe_description=$(printf '%s' "${description}" | tr -d '\r')
 safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
-# Use a random delimiter to prevent heredoc injection if description contains a line equal to the delimiter
-_env_delim="EOF_$(dd if=/dev/urandom bs=15 count=1 2>/dev/null | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
+# Random per-run delimiter so a line in the description cannot terminate the block early
+env_delim="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 {
-  echo "PR_DESCRIPTION<<${_env_delim}"
-  echo "${safe_description}"
-  echo "${_env_delim}"
+  echo "PR_DESCRIPTION<<${env_delim}"
+  echo "${description}"
+  echo "${env_delim}"
 } >>"${GITHUB_ENV}"
 
 echo "PR_TITLE=${safe_title}" >>"${GITHUB_ENV}"

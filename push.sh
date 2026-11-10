@@ -1,17 +1,11 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086
+
 set -euo pipefail
 
 # shellcheck source=git_github.sh
 source "${BASH_SOURCE[0]%/*}/git_github.sh"
-
-# Tokenize INPUT_ARGUMENTS (a caller-controlled list of extra flags) in a
-# quote-aware manner so that shell metacharacters are never evaluated.
-input_args=()
-if [ -n "${INPUT_ARGUMENTS:-}" ]; then
-  while IFS= read -r -d '' t; do input_args+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
 
 if [[ ${INPUT_DEBUG} == "true" ]]; then
   set -x
@@ -24,7 +18,7 @@ if [[ ${GITHUB_EVENT_BEFORE} == "0000000000000000000000000000000000000000" ]]; t
     --ci \
     --all \
     --github-commit "${GITHUB_EVENT_AFTER}" \
-    "${input_args[@]}"
+    ${INPUT_ARGUMENTS}
   exit
 fi
 
@@ -46,4 +40,4 @@ fi
   --ci \
   --upstream "${upstream}" \
   --github-commit "${GITHUB_EVENT_AFTER}" \
-  "${input_args[@]}"
+  ${INPUT_ARGUMENTS}
