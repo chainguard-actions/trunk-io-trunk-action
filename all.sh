@@ -15,12 +15,10 @@ fetch() {
 
 MINIMUM_UPLOAD_ID_VERSION=1.12.3
 
-# Tokenize INPUT_ARGUMENTS into an array (handles quoted sub-arguments safely)
-input_args=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_args+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
+# Split INPUT_ARGUMENTS exactly like upstream's unquoted ${INPUT_ARGUMENTS} (whitespace split + glob).
+# Nothing in the value is evaluated.
+# shellcheck disable=SC2206
+input_args=(${INPUT_ARGUMENTS})
 
 echo "::warning::Check uploads and check all mode is no longer supported. Please see https://docs.trunk.io/code-quality/setup-and-installation/prevent-new-issues/migration-guide for more information."
 if [[ -z ${INPUT_TRUNK_TOKEN} ]]; then
@@ -28,7 +26,7 @@ if [[ -z ${INPUT_TRUNK_TOKEN} ]]; then
     --ci \
     --all \
     --github-commit "${GITHUB_SHA}" \
-    "${input_args[@]}"
+    ${input_args[@]+"${input_args[@]}"}
 elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
   latest_raw_upload="$(mktemp)"
   prev_ref="$("${TRUNK_PATH}" check get-latest-raw-output \
@@ -41,10 +39,11 @@ elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
     htl_arg="--htl-factories-path=${latest_raw_upload}"
     fetch origin "${prev_ref}"
   fi
+  upload_id_args=()
   if [[ -n ${INPUT_UPLOAD_ID-} ]]; then # if upload ID unset, skip it instead of erroring
-    upload_id_arg="--upload-id"
-    upload_id_val="${INPUT_UPLOAD_ID}"
-    trunk_version="$(${TRUNK_PATH} version)"
+    # shellcheck disable=SC2206
+    upload_id_args=(--upload-id ${INPUT_UPLOAD_ID})
+    trunk_version="$("${TRUNK_PATH}" version)"
     # trunk-ignore-begin(shellcheck/SC2312): the == will fail if anything inside the $() fails
     if sort_result=$(printf "%s\n%s\n" "${MINIMUM_UPLOAD_ID_VERSION}" "${trunk_version}" | sort --version-sort); then
       if [[ $(echo "${sort_result}" | head -n 1) == "${trunk_version}" ]]; then
@@ -55,22 +54,19 @@ elif [[ ${INPUT_CHECK_ALL_MODE} == "hold-the-line" ]]; then
       echo "::warning::sort --version-sort failed - continuing without checking CLI version"
     fi
     # trunk-ignore-end(shellcheck/SC2312)
-  else
-    upload_id_arg=""
-    upload_id_val=""
   fi
   "${TRUNK_PATH}" check \
     --all \
     --upload \
     ${htl_arg:+"${htl_arg}"} \
-    ${upload_id_arg:+"${upload_id_arg}" "${upload_id_val}"} \
+    ${upload_id_args[@]+"${upload_id_args[@]}"} \
     --series "${INPUT_UPLOAD_SERIES:-${GITHUB_REF_NAME}}" \
-    "${input_args[@]}"
+    ${input_args[@]+"${input_args[@]}"}
 else
   "${TRUNK_PATH}" check \
     --all \
     --upload \
     --series "${INPUT_UPLOAD_SERIES:-${INPUT_GITHUB_REF_NAME}}" \
     --token "${INPUT_TRUNK_TOKEN}" \
-    "${input_args[@]}"
+    ${input_args[@]+"${input_args[@]}"}
 fi

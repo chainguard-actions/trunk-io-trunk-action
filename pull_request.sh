@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# Split INPUT_ARGUMENTS exactly like upstream's unquoted ${INPUT_ARGUMENTS} (whitespace split + glob).
+# shellcheck disable=SC2206
+input_args=(${INPUT_ARGUMENTS})
+
 if [[ ${INPUT_DEBUG} == "true" ]]; then
   set -x
 fi
@@ -14,13 +18,6 @@ fetch() {
 }
 
 MINIMUM_CHECK_RUN_ID_VERSION=1.7.0
-
-# Tokenize INPUT_ARGUMENTS into an array (handles quoted sub-arguments safely)
-input_args=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_args+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
 
 if [[ ${INPUT_GITHUB_REF_NAME} == "${GITHUB_EVENT_PULL_REQUEST_NUMBER}/merge" ]]; then
   # If we have checked out the merge commit then fetch enough history to use HEAD^1 as the upstream.
@@ -46,7 +43,7 @@ if [[ ${save_annotations} == "auto" && ${GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FOR
 fi
 
 if [[ -n ${INPUT_CHECK_RUN_ID} ]]; then
-  trunk_version="$(${TRUNK_PATH} version)"
+  trunk_version="$("${TRUNK_PATH}" version)"
   # trunk-ignore-begin(shellcheck/SC2312): the == will fail if anything inside the $() fails
   if sort_result=$(printf "%s\n%s\n" "${MINIMUM_CHECK_RUN_ID_VERSION}" "${trunk_version}" | sort --version-sort); then
     if [[ $(echo "${sort_result}" | head -n 1) == "${trunk_version}" ]]; then
@@ -67,7 +64,7 @@ else
 fi
 
 if [[ -n ${INPUT_AUTOFIX_AND_PUSH} ]]; then
-  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" "${input_args[@]}"
+  "${TRUNK_PATH}" check --ci --upstream "${upstream}" --fix "${annotation_argument}" ${input_args[@]+"${input_args[@]}"}
   git config --global user.email ""
   git config --global user.name "${GITHUB_ACTOR}"
   git commit --all --allow-empty --message "Trunk Check applied autofixes"
@@ -79,5 +76,5 @@ else
     --github-commit "${git_commit}" \
     --github-label "${INPUT_LABEL}" \
     "${annotation_argument}" \
-    "${input_args[@]}"
+    ${input_args[@]+"${input_args[@]}"}
 fi

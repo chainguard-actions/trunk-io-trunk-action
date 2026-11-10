@@ -1,11 +1,15 @@
 name: Setup environment
 author: trunk.io
 description: Automatic setup for trunk check dependencies (e.g. Node)
+
 inputs:
   cache-key:
-    description: Cache key for setup (either passed into .trunk/setup-ci/, or used to cache node_modules in this action).
+    description:
+      Cache key for setup (either passed into .trunk/setup-ci/, or used to cache node_modules in
+      this action).
     required: false
     default: ""
+
 runs:
   using: composite
   steps:
@@ -83,6 +87,7 @@ runs:
         else
           echo "Could not find existing node install, skipping node package installation"
         fi
+
     - name: Determine pnpm version
       if: env.PACKAGE_MANAGER == 'pnpm'
       shell: bash
@@ -107,12 +112,15 @@ runs:
         if [ -z "${PNPM_VERSION}" ]; then
           PNPM_VERSION=latest
         fi
-        echo "PNPM_VERSION=${PNPM_VERSION}" >>$GITHUB_ENV
+        safe_pnpm_version=$(printf '%s' "${PNPM_VERSION}" | tr -d '\n\r')
+        echo "PNPM_VERSION=${safe_pnpm_version}" >>"$GITHUB_ENV"
+
     - name: Install pnpm
       if: env.PACKAGE_MANAGER == 'pnpm'
       uses: chainguard-actions/pnpm-action-setup@44c31db72699e9f41d17d9cf93760ce624975ae5 # v6.0.8
       with:
         version: ${{ env.PNPM_VERSION }}
+
     - name: Install Node dependencies
       id: setup_node
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE
@@ -120,6 +128,7 @@ runs:
       with:
         node-version-file: ${{ env.NODE_VERSION_FILE }}
       continue-on-error: true
+
     - name: Check for node installation
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE
       shell: bash
@@ -135,17 +144,22 @@ runs:
           echo "::warning::No existing node install detected - installing latest node instead."
           echo "INSTALL_LATEST_NODE=true" >>$GITHUB_ENV
         fi
+
     - name: Install backup node version
       if: env.PACKAGE_MANAGER && env.NODE_VERSION_FILE && env.INSTALL_LATEST_NODE == 'true'
       uses: chainguard-actions/actions-setup-node@432c4f30623acd4c5b64414ed4e44175fc77b242 # v6.4.0
       with:
         node-version: latest
+
     - name: Cache node_modules
       if: inputs.cache-key && env.PACKAGE_MANAGER
       uses: chainguard-actions/actions-cache@b5b76c7016521bd34554159c882773b3df2e994a # v5.0.5
       with:
         path: node_modules/
-        key: ${{ env.PACKAGE_MANAGER }}-${{ runner.os }}-${{ inputs.cache-key }}-${{ hashFiles(env.HASH_GLOB) }}
+        key:
+          ${{ env.PACKAGE_MANAGER }}-${{ runner.os }}-${{ inputs.cache-key }}-${{
+          hashFiles(env.HASH_GLOB) }}
+
     - name: Install ${{ env.PACKAGE_MANAGER }} packages
       id: install_packages
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
@@ -153,9 +167,11 @@ runs:
       env:
         INSTALL_CMD: ${{ env.INSTALL_CMD }}
       run: |
-        printf '%s\n' "$INSTALL_CMD" > /tmp/_trunk_install_cmd.sh
-        bash -eo pipefail /tmp/_trunk_install_cmd.sh
+        install_script="$(mktemp "${RUNNER_TEMP:-/tmp}/trunk_install_cmd.XXXXXX")"
+        printf '%s\n' "$INSTALL_CMD" > "$install_script"
+        bash -eo pipefail "$install_script"
       continue-on-error: true
+
     - name: Check for package install
       if: env.PACKAGE_MANAGER && (env.NODE_VERSION_FILE || env.RUN_INSTALL_NODE_PACKAGES)
       shell: bash

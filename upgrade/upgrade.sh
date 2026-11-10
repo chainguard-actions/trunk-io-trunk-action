@@ -3,12 +3,10 @@
 set -euo pipefail
 
 # Step 1: Run upgrade and strip ANSI coloring.
-upgrade_args=()
-if [ -n "${UPGRADE_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do upgrade_args+=("$t"); done \
-    < <(printf '%s' "${UPGRADE_ARGUMENTS}" | xargs printf '%s\0')
-fi
-upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n "${upgrade_args[@]}" | sed -e 's/\x1b\[[0-9;]*m//g')
+# Split arguments exactly as upstream's unquoted expansion did (whitespace split + glob).
+# shellcheck disable=SC2206
+upgrade_args=(${UPGRADE_ARGUMENTS})
+upgrade_output=$("${TRUNK_PATH}" upgrade --no-progress -n ${upgrade_args[@]+"${upgrade_args[@]}"} | sed -e 's/\x1b\[[0-9;]*m//g')
 
 # Step 2a: Parse output. If up to date, exit successfully.
 if [[ ${upgrade_output} == *"Already up to date"* ]]; then
@@ -47,8 +45,12 @@ d
 }' "${GITHUB_ACTION_PATH}"/upgrade_pr.md)
 
 # Step 6: Write outputs
+eof_delim="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+{
+  echo "PR_DESCRIPTION<<${eof_delim}"
+  echo "${description}"
+  echo "${eof_delim}"
+} >>"${GITHUB_ENV}"
+
 safe_title=$(printf '%s' "${title_message}" | tr -d '\n\r')
 echo "PR_TITLE=${safe_title}" >>"${GITHUB_ENV}"
-
-safe_description=$(printf '%s' "${description}" | tr -d '\n\r')
-echo "PR_DESCRIPTION=${safe_description}" >>"${GITHUB_ENV}"

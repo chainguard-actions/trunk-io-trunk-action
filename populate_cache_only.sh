@@ -2,13 +2,10 @@
 
 set -euo pipefail
 
-# Tokenize INPUT_ARGUMENTS into an array (handles quoted sub-arguments safely)
-input_args=()
-if [ -n "${INPUT_ARGUMENTS}" ]; then
-  while IFS= read -r -d '' t; do input_args+=("$t"); done \
-    < <(printf '%s' "${INPUT_ARGUMENTS}" | xargs printf '%s\0')
-fi
+# Split INPUT_ARGUMENTS exactly like upstream's unquoted ${INPUT_ARGUMENTS} (whitespace split + glob).
+# shellcheck disable=SC2206
+input_args=(${INPUT_ARGUMENTS})
 
 "${TRUNK_PATH}" install \
   --ci \
-  "${input_args[@]}"
+  ${input_args[@]+"${input_args[@]}"}
